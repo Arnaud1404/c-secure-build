@@ -1,0 +1,8 @@
+BasedOnStyle: LLVM
+IndentCaseLabels: true
+PointerAlignment: Left
+Cpp11BracedListStyle: false
+SpacesInContainerLiterals: true
+AlignArrayOfStructures: Right
+AllowShortEnumsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
