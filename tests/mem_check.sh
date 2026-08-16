@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+# Define Valgrind exit codes for clarity
+VALGRIND_LEAK_DETECTED_EXIT_CODE=1
+VALGRIND_NO_LEAK_EXIT_CODE=0
+
 BIN_PATH="./bin/c-secure-shell"
-PAYLOAD_PATH="./tests/payload.txt"
+PAYLOAD_PATH="./tests/vuln_shell_commands.txt"
 
 echo "[*] Rebuilding binary without ASan for Valgrind compatibility..."
 make clean > /dev/null 2>&1
@@ -26,7 +30,7 @@ set +e
 valgrind --leak-check=full \
          --show-leak-kinds=all \
          --track-origins=yes \
-         --error-exitcode=1 \
+         --error-exitcode="$VALGRIND_LEAK_DETECTED_EXIT_CODE" \
          --quiet \
          "$BIN_PATH" < "$PAYLOAD_PATH" > /dev/null 2>&1
 
@@ -34,10 +38,11 @@ EXIT_CODE=$?
 
 set -e
 
-if [[ $EXIT_CODE -eq 1 ]]; then
+if [[ $EXIT_CODE -eq "$VALGRIND_LEAK_DETECTED_EXIT_CODE" ]]; then # Valgrind exited with the code indicating a leak.
     echo "[+] GATE PASSED: Valgrind successfully intercepted the intentional memory leak."
-    exit 0
-else
-    echo "[-] GATE FAILED: Valgrind failed to detect the leak, or returned unexpected code: $EXIT_CODE"
-    exit 1
+    exit 0 
 fi
+
+# If we reach here, Valgrind's EXIT_CODE was not 1, meaning it did not detect the leak.
+echo "[-] GATE FAILED: Valgrind failed to detect the leak, or returned unexpected code: $EXIT_CODE"
+exit 1
