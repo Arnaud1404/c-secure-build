@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Define Valgrind exit codes for clarity
 VALGRIND_LEAK_DETECTED_EXIT_CODE=1
 VALGRIND_NO_LEAK_EXIT_CODE=0
 
@@ -38,11 +37,10 @@ EXIT_CODE=$?
 
 set -e
 
-if [[ $EXIT_CODE -eq "$VALGRIND_LEAK_DETECTED_EXIT_CODE" ]]; then # Valgrind exited with the code indicating a leak.
+if [[ $EXIT_CODE -eq "$VALGRIND_LEAK_DETECTED_EXIT_CODE" ]]; then
     echo "[+] GATE PASSED: Valgrind successfully intercepted the intentional memory leak."
     exit 0 
 fi
 
-# If we reach here, Valgrind's EXIT_CODE was not 1, meaning it did not detect the leak.
 echo "[-] GATE FAILED: Valgrind failed to detect the leak, or returned unexpected code: $EXIT_CODE"
 exit 1

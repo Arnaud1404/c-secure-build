@@ -1,4 +1,4 @@
-CFLAGS = -std=c17 -O2 -Wall -Wextra -Werror -pedantic -g
+CFLAGS = -std=c17 -O2 -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -pedantic -g 
 SEC_FLAGS = -D_FORTIFY_SOURCE=3 -fPIE -pie -fstack-protector-strong -Wformat -Wformat-security
 
 # Toggle ASan to prevent collisions with Valgrind during CI/CD dynamic testing.
