@@ -1,11 +1,15 @@
-CFLAGS = -std=c17 -O2 -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -pedantic -g 
-SEC_FLAGS = -D_FORTIFY_SOURCE=3 -fPIE -pie -fstack-protector-strong -Wformat -Wformat-security
 
-# Toggle ASan to prevent collisions with Valgrind during CI/CD dynamic testing.
-# Default to 1 (local dev). CI/CD scripts will run: make SANITIZE=0
+CFLAGS = -std=c17 -O2 -g -Wall -Wextra -Werror -pedantic
+CFLAGS += -fPIE -fstack-protector-strong -Wformat -Wformat-security
+CPPFLAGS = -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -D_FORTIFY_SOURCE=3
+
+LDFLAGS = -pie -Wl,-z,relro,-z,now
+
+
 SANITIZE ?= 1
 ifeq ($(SANITIZE),1)
-	CFLAGS += -fsanitize=address
+    CFLAGS  += -fsanitize=address,undefined
+    LDFLAGS += -fsanitize=address,undefined
 endif
 
 SRC_DIR = src
@@ -13,21 +17,21 @@ OBJ_DIR = obj
 BIN_DIR = bin
 
 TARGET = $(BIN_DIR)/c-secure-shell
-SRC = $(wildcard $(SRC_DIR)/*.c)
-OBJ = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC))
+SRC = $(SRC_DIR)/vuln_shell.c
+OBJ = $(OBJ_DIR)/vuln_shell.o
 
-all: dirs $(TARGET)
+.PHONY: all clean
 
-dirs:
-	@mkdir -p $(OBJ_DIR) $(BIN_DIR)
+all: $(TARGET)
 
-$(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) $(SEC_FLAGS) $^ -o $@
+$(TARGET): $(OBJ) | $(BIN_DIR)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) $(SEC_FLAGS) -c $< -o $@
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR) $(BIN_DIR):
+	@mkdir -p $@
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
-
-.PHONY: all dirs clean
