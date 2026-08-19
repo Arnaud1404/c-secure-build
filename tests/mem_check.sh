@@ -24,6 +24,7 @@ set +e
 
 valgrind --leak-check=full \
          --show-leak-kinds=all \
+         --errors-for-leak-kinds=all \
          --track-origins=yes \
          --error-exitcode="$VALGRIND_LEAK_DETECTED_EXIT_CODE" \
          --quiet \

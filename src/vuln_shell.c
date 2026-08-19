@@ -70,6 +70,8 @@ int main(void) {
   size_t buffer_size = 0;
   ssize_t bytes_read;
 
+  trigger_memory_leak();
+
   while (1) {
     printf("c-sec> ");
     fflush(stdout);
@@ -87,8 +89,6 @@ int main(void) {
 
     if (strlen(input_buffer) == 0)
       continue;
-
-    trigger_memory_leak();
 
     char* parsed_args[MAX_ARGS];
     parse_input(input_buffer, parsed_args);
