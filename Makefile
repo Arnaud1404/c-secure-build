@@ -5,8 +5,14 @@ CPPFLAGS = -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -D_FORTIFY_SOURCE=3
 
 LDFLAGS = -pie -Wl,-z,relro,-z,now
 
-SANITIZE ?= 1
-ifeq ($(SANITIZE),1)
+ASAN ?= 1
+VALGRIND ?= 0
+
+ifeq ($(VALGRIND),1)
+    ASAN := 0
+endif
+
+ifeq ($(ASAN),1)
     CFLAGS  += -fsanitize=address,undefined
     LDFLAGS += -fsanitize=address,undefined
 endif

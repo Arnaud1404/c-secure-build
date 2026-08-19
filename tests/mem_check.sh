@@ -8,7 +8,7 @@ BIN_PATH="./bin/c-secure-shell"
 PAYLOAD_PATH="./tests/vuln_shell_commands.txt"
 
 make clean > /dev/null 2>&1
-make SANITIZE=0 > /dev/null 2>&1
+make VALGRIND=1 > /dev/null 2>&1
 
 if [[ ! -f "$BIN_PATH" ]]; then
     echo "ERROR: Binary not found at $BIN_PATH"
