@@ -16,10 +16,12 @@ static char* globally_leaked_ptr = NULL;
  * to be caught by analysis tools. */
 static void trigger_memory_leak(void) {
   globally_leaked_ptr = malloc(LEAK_BUFFER_SIZE);
-  if (globally_leaked_ptr != NULL) {
-    strncpy(globally_leaked_ptr, "trigger", LEAK_BUFFER_SIZE - 1);
-    globally_leaked_ptr[LEAK_BUFFER_SIZE - 1] = '\0';
+  if (globally_leaked_ptr == NULL) {
+    perror("malloc failed");
+    exit(EXIT_FAILURE);
   }
+  strncpy(globally_leaked_ptr, "trigger", LEAK_BUFFER_SIZE - 1);
+  globally_leaked_ptr[LEAK_BUFFER_SIZE - 1] = '\0';
 }
 
 /* Splits the input string into arguments using strtok_r,
@@ -46,16 +48,16 @@ static void execute_command(char** args) {
   pid_t pid = fork();
 
   if (pid == 0) {
-    // Child process
+    /* Child process */
     execvp(args[0], args);
     perror("execvp failed");
     exit(EXIT_FAILURE);
   } else if (pid == -1) {
-    // Fork failed
+    /* Fork failed */
     perror("fork failed");
     exit(EXIT_FAILURE);
   } else {
-    // Parent process
+    /* Parent process */
     waitpid(pid, NULL, 0);
   }
 }
