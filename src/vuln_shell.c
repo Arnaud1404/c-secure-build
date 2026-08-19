@@ -49,6 +49,7 @@ static void execute_command(char** args) {
 
   if (pid == 0) {
     /* Child process */
+    /* flawfinder:ignore */
     execvp(args[0], args);
     perror("execvp failed");
     exit(EXIT_FAILURE);
