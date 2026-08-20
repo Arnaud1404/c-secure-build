@@ -50,3 +50,13 @@ This document defines the strict coding, architecture, and security conventions 
 *   **Zeroization:** Any buffer handling sensitive input, credentials, or parsed execution arguments must be securely zeroized (e.g., `explicit_bzero`) before being freed.
 *   Free partial allocations on intermediate failure paths.
 *   Close files and file descriptors on all return paths after successful open.
+
+## Python (Tooling Scripts)
+
+*   Use `snake_case` for functions and variables, `UPPER_SNAKE_CASE` for module-level constants, matching the C convention.
+*   **Strong typing, no exceptions:** every function signature carries full parameter and return type annotations, including `-> None`. 
+*   Use built-in generics (`list[str]`, `dict[str, int]`)
+*   Prefer `pathlib.Path` over string paths; module-level path constants are computed once from `Path(__file__).resolve()`, never hardcoded.
+*   Structure a standalone script as `def main() -> int:` returning a process exit code, called from `if __name__ == "__main__": sys.exit(main())`. No top-level executable statements outside `main()`.
+*   No list/dict/set comprehensions, generator expressions, or other one-line idioms in place of a loop. Write the `for` loop. A reader should not need to know Python-specific syntax tricks to follow the logic.
+*   Keep comments to a minimum, same rule as C: the code should speak for itself.
