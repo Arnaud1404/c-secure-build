@@ -7,11 +7,28 @@ from pathlib import Path
 REPO_ROOT: Path = Path(__file__).resolve().parent.parent
 FLAWFINDER_SARIF: Path = REPO_ROOT / ".security" / "flawfinder.sarif"
 SEMGREP_SARIF: Path = REPO_ROOT / ".security" / "semgrep.sarif"
+CLANGSA_SARIF: Path = REPO_ROOT / ".security" / "clangsa.sarif"
 MERGED_OUT: Path = REPO_ROOT / ".security" / "merged.sarif"
 
 CWE_RE = re.compile(r"CWE-\d+")
 
 SEVERITY_RANK: dict[str, int] = {"note": 1, "warning": 2, "error": 3}
+
+CLANGSA_RULE_CWES: dict[str, set[str]] = {
+    "unix.Malloc": {"CWE-401", "CWE-415", "CWE-416"},
+    "cplusplus.NewDeleteLeaks": {"CWE-401"},
+    "core.NullDereference": {"CWE-476"},
+    "core.DivideZero": {"CWE-369"},
+    "core.uninitialized.Assign": {"CWE-457"},
+    "core.uninitialized.UndefReturn": {"CWE-457"},
+    "core.uninitialized.Branch": {"CWE-457"},
+    "core.uninitialized.ArraySubscript": {"CWE-457"},
+    "core.uninitialized.CapturedBlockVariable": {"CWE-457"},
+    "core.uninitialized.NewArraySize": {"CWE-457"},
+    "core.StackAddressEscape": {"CWE-562"},
+    "core.VLASize": {"CWE-1284"},
+    "unix.API": {"CWE-252"},
+}
 
 
 class Finding:
@@ -92,6 +109,30 @@ def load_semgrep(path: Path) -> list[Finding]:
                 message=r["message"]["text"],
             )
         )
+    return findings
+
+
+def load_clangsa(path: Path) -> list[Finding]:
+    if not path.exists():
+        return []
+    sarif: dict = json.loads(path.read_text())
+    findings: list[Finding] = []
+    for run in sarif["runs"]:
+        for r in run["results"]:
+            rule_id: str = r["ruleId"]
+            cwes: set[str] = CLANGSA_RULE_CWES.get(rule_id, set())
+            loc = r["locations"][0]["physicalLocation"]
+            findings.append(
+                Finding(
+                    tool="clangsa",
+                    rule_id=rule_id,
+                    file=loc["artifactLocation"]["uri"],
+                    line=loc["region"]["startLine"],
+                    cwes=cwes,
+                    level=r["level"],
+                    message=r["message"]["text"],
+                )
+            )
     return findings
 
 
@@ -181,7 +222,8 @@ def sort_key(result: dict) -> tuple[int, str]:
 def main() -> int:
     ff_findings: list[Finding] = load_flawfinder(FLAWFINDER_SARIF)
     sg_findings: list[Finding] = load_semgrep(SEMGREP_SARIF)
-    findings: list[Finding] = ff_findings + sg_findings
+    csa_findings: list[Finding] = load_clangsa(CLANGSA_SARIF)
+    findings: list[Finding] = ff_findings + sg_findings + csa_findings
     groups: list[list[Finding]] = group_findings(findings)
 
     results: list[dict] = []
