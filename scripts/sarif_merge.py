@@ -27,7 +27,7 @@ CLANGSA_RULE_CWES: dict[str, set[str]] = {
     "core.uninitialized.NewArraySize": {"CWE-457"},
     "core.StackAddressEscape": {"CWE-562"},
     "core.VLASize": {"CWE-1284"},
-    "unix.API": {"CWE-252"},
+    "security.insecureAPI.UncheckedReturn": {"CWE-252"},
 }
 
 
