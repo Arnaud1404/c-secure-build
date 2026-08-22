@@ -20,12 +20,13 @@ endif
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
+SEC_DIR = .security
 
 TARGET = $(BIN_DIR)/c-secure-shell
 SRC = $(SRC_DIR)/vuln_shell.c
 OBJ = $(OBJ_DIR)/vuln_shell.o
 
-.PHONY: all clean
+.PHONY: all clean scan test-mem
 
 all: $(TARGET)
 
@@ -38,5 +39,11 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 $(OBJ_DIR) $(BIN_DIR):
 	@mkdir -p $@
 
+scan:
+	./scripts/scan.sh
+
+test-mem:
+	./tests/mem_check.sh
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	rm -rf $(OBJ_DIR) $(BIN_DIR) $(SEC_DIR)
