@@ -6,23 +6,6 @@
 #include <unistd.h>
 
 #define MAX_ARGS 64
-#define LEAK_BUFFER_SIZE 128
-
-/* File-scoped pointer to hold an intentional memory leak
- * for analysis tools to detect. */
-static char* globally_leaked_ptr = NULL;
-
-/* Intentionally leaks memory and uses an unsafe copy
- * to be caught by analysis tools. */
-static void trigger_memory_leak(void) {
-  globally_leaked_ptr = malloc(LEAK_BUFFER_SIZE);
-  if (globally_leaked_ptr == NULL) {
-    perror("malloc failed");
-    exit(EXIT_FAILURE);
-  }
-  strncpy(globally_leaked_ptr, "trigger", LEAK_BUFFER_SIZE - 1);
-  globally_leaked_ptr[LEAK_BUFFER_SIZE - 1] = '\0';
-}
 
 /* Splits the input string into arguments using strtok_r,
  * modifying the input in-place. */
@@ -70,8 +53,6 @@ int main(void) {
   size_t buffer_size = 0;
   ssize_t bytes_read;
 
-  trigger_memory_leak();
-
   while (1) {
     printf("c-sec> ");
     fflush(stdout);
@@ -104,8 +85,6 @@ int main(void) {
     explicit_bzero(input_buffer, buffer_size);
   }
   free(input_buffer);
-
-  fprintf(stderr, "Leaked pointer usage: %p\n", (void*)globally_leaked_ptr);
 
   return 0;
 }

@@ -34,9 +34,9 @@ EXIT_CODE=$?
 
 set -e
 
-if [[ $EXIT_CODE -eq "$VALGRIND_LEAK_DETECTED_EXIT_CODE" ]]; then
+if [[ $EXIT_CODE -eq "$VALGRIND_NO_LEAK_EXIT_CODE" ]]; then
     exit 0
 fi
 
-echo "ERROR: Valgrind gate failed (exit code: $EXIT_CODE)"
+echo "ERROR: Valgrind detected a memory error (exit code: $EXIT_CODE)"
 exit 1
