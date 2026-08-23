@@ -1,7 +1,7 @@
 # Third-Party Rules: 0xdea/semgrep-rules
 
-Everything in this directory except this file, `LICENSE`, and `NOTICE.md`
-itself is vendored, unmodified, from:
+Everything in this directory except this file, `LICENSE`, `NOTICE.md`
+itself, and `local/` is vendored, unmodified, from:
 
 * **Source:** <https://github.com/0xdea/semgrep-rules>
 * **Author:** Marco Ivaldi ("raptor") <raptor@0xdeadbeef.info>
@@ -30,8 +30,10 @@ This ruleset has no rule for:
   closest rules are the inverse: `raptor-double-free` (freeing twice) and
   `raptor-incorrect-use-of-free` (freeing non-heap memory).
 
-Both classes are still present in `vuln_shell.c` and are not caught by
-Semgrep as configured here.
+The `fork`/`execvp` gap is still present in `vuln_shell.c` and is not
+caught by Semgrep as configured here. The missing-`free()` gap is closed
+by `local/missing-free-malloc.yaml`, this project's own rule — see
+`local/` above.
 
 ## Known false positive
 
@@ -45,7 +47,11 @@ false positives."
 ## Verifying this snapshot
 
 ```sh
-semgrep --validate --config .semgrep/rules/   # 49 rules, 0 config errors
-semgrep --test .semgrep/rules/                # runs upstream's own
-                                               # ruleid:/ok: fixtures
+semgrep --validate --config .semgrep/rules/   # 50 rules (49 vendored +
+                                               # 1 local), 0 config errors
+semgrep --test .semgrep/rules/                # 49/49: runs upstream's own
+                                               # ruleid:/ok: fixtures.
+                                               # local/ has no fixture, so
+                                               # it's silently skipped here,
+                                               # not tested by this command.
 ```

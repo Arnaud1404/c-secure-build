@@ -1,0 +1,12 @@
+# .semgrep/rules/local/missing-free-malloc.yaml
+rules:
+  - id: missing-free-malloc
+    languages: [c]
+    severity: ERROR
+    message: allocated pointer has no free() before end of scope
+    patterns:
+      - pattern: $BUF = malloc(...);
+      - pattern-not-inside: |
+          $BUF = malloc(...);
+          ...
+          free($BUF);
