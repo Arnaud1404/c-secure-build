@@ -1,4 +1,3 @@
-# .semgrep/rules/local/missing-free-malloc.yaml
 rules:
   - id: missing-free-malloc
     languages: [c]

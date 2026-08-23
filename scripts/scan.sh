@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Two passes per tool:
-# - One unfiltered, for the SARIF report
-# - One filtered, whose exit code gates.
-# Keeping them separate means the gate can be narrow (error only)
-# without deleting the lower-severity findings from the report.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -23,6 +18,15 @@ semgrep --config .semgrep/rules/ --severity=ERROR --error --quiet src/ \
 clang --analyze -Xclang -analyzer-output=sarif -std=c17 \
     -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L \
     -o .security/clangsa.sarif src/*.c || true
+
+if jq --arg prefix "file://$(pwd)/" \
+    '(.. | objects | select(has("uri")) | .uri) |= ltrimstr($prefix)' \
+    .security/clangsa.sarif > .security/clangsa.tmp; then
+    mv .security/clangsa.tmp .security/clangsa.sarif
+else
+    rm -f .security/clangsa.tmp
+fi
+
 [ "$(jq '[.runs[].results[]] | length' .security/clangsa.sarif)" -eq 0 ] \
     || blocked=1
 

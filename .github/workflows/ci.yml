@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.cc }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends valgrind
+
+      - name: Record toolchain versions
+        run: |
+          "$CC" --version | head -1
+          valgrind --version
+          make --version | head -1
+
+      - name: Build with hardening flags and sanitizers
+        run: make
+
+      - name: Valgrind memory gate
+        run: make test-mem
+
+  scan:
+    name: security gate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the pinned scanners
+        run: pip install -r requirements.txt
+
+      - name: Install jq and clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq clang
+
+      - name: Record tool versions
+        run: |
+          flawfinder --version
+          semgrep --version
+          clang --version | head -1
+          jq --version
+
+      - name: Run the gate
+        id: gate
+        run: |
+          code=0
+          make scan || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise findings
+        if: always()
+        run: |
+          {
+            echo "| Engine | Findings |"
+            echo "|---|---|"
+            for f in .security/*.sarif; do
+              [ -f "$f" ] || continue
+              n=$(jq '[.runs[].results[]] | length' "$f" 2>/dev/null || echo "?")
+              echo "| $(basename "$f" .sarif) | $n |"
+            done
+            echo
+            if [ "${{ steps.gate.outputs.code }}" = "0" ]; then
+              echo "Gate passed."
+            else
+              echo "Gate blocked. See the Security tab for details."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Flawfinder SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@42947a340483f03ba47bb1a039b2c519aab3df85 # v3
+        with:
+          sarif_file: .security/flawfinder.sarif
+          category: flawfinder
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@42947a340483f03ba47bb1a039b2c519aab3df85 # v3
+        with:
+          sarif_file: .security/semgrep.sarif
+          category: semgrep
+
+      - name: Upload Clang Static Analyzer SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@42947a340483f03ba47bb1a039b2c519aab3df85 # v3
+        with:
+          sarif_file: .security/clangsa.sarif
+          category: clang-sa
+
+      - name: Enforce the gate
+        if: steps.gate.outputs.code != '0'
+        run: |
+          echo "::error::Security gate blocked. See the Security tab."
+          exit 1
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSLo gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks.tar.gz
+          gitleaks version
+
+      - name: Scan history for secrets
+        id: gitleaks
+        run: |
+          code=0
+          gitleaks git . \
+            --redact \
+            --no-banner \
+            --report-format sarif \
+            --report-path gitleaks.sarif || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Upload gitleaks SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@42947a340483f03ba47bb1a039b2c519aab3df85 # v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+      - name: Enforce the secret scan
+        if: steps.gitleaks.outputs.code != '0'
+        run: |
+          echo "::error::gitleaks found a secret in the history."
+          exit 1
