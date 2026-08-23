@@ -1,4 +1,5 @@
 bin/
 obj/
 .security/
+scripts/optional/
 __pycache__/
