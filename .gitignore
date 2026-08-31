@@ -4,3 +4,5 @@ obj/
 scripts/optional/
 __pycache__/
 .venv/
+markdown/
+.claude/
