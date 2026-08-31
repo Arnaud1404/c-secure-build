@@ -77,7 +77,7 @@ jobs:
         id: gate
         run: |
           code=0
-          make scan || code=$?
+          ./scripts/scan.sh || code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Summarise findings
@@ -92,11 +92,11 @@ jobs:
               echo "| $(basename "$f" .sarif) | $n |"
             done
             echo
-            if [ "${{ steps.gate.outputs.code }}" = "0" ]; then
-              echo "Gate passed."
-            else
-              echo "Gate blocked. See the Security tab for details."
-            fi
+            case "${{ steps.gate.outputs.code }}" in
+              0) echo "Gate passed." ;;
+              1) echo "Gate blocked. See the Security tab for details." ;;
+              *) echo "Gate could not run: a scanner is missing. Nothing was checked." ;;
+            esac
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Flawfinder SARIF
@@ -123,7 +123,11 @@ jobs:
       - name: Enforce the gate
         if: steps.gate.outputs.code != '0'
         run: |
-          echo "::error::Security gate blocked. See the Security tab."
+          if [ "${{ steps.gate.outputs.code }}" = "1" ]; then
+            echo "::error::Security gate blocked. See the Security tab."
+          else
+            echo "::error::Security gate could not run (exit ${{ steps.gate.outputs.code }}). A scanner is missing, so nothing was scanned."
+          fi
           exit 1
 
   secrets:
