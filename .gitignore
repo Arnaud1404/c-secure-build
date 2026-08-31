@@ -3,3 +3,4 @@ obj/
 .security/
 scripts/optional/
 __pycache__/
+.venv/

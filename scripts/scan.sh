@@ -2,6 +2,19 @@
 set -eu
 
 cd "$(dirname "$0")/.."
+
+if [ -d .venv/bin ]; then
+    PATH="$PWD/.venv/bin:$PATH"
+    export PATH
+fi
+
+for tool in flawfinder semgrep clang jq; do
+    if ! command -v "$tool" > /dev/null 2>&1; then
+        echo "ERROR: $tool not found" >&2
+        exit 2
+    fi
+done
+
 mkdir -p .security
 rm -f .security/*.sarif
 
