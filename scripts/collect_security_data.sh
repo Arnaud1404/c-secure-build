@@ -120,13 +120,23 @@ import json, sys
 
 data = json.load(open(sys.argv[1]))
 for run in data.get("runs", []):
-    tool = run.get("tool", {}).get("driver", {}).get("name", "?")
+    driver = run.get("tool", {}).get("driver", {})
+    tool = driver.get("name", "?")
+    # Semgrep carries severity on the rule definition and omits it from the
+    # result. Without this fallback the level column is blank for a whole
+    # engine, and "none at error" becomes a claim the dataset cannot check.
+    levels = {}
+    for rule in driver.get("rules", []):
+        if rule.get("id") is not None:
+            levels[rule["id"]] = rule.get("defaultConfiguration", {}).get(
+                "level", "")
     for r in run.get("results", []):
+        rule_id = r.get("ruleId", "")
         loc = (r.get("locations") or [{}])[0].get("physicalLocation", {})
         uri = loc.get("artifactLocation", {}).get("uri", "-")
         line = loc.get("region", {}).get("startLine", 0)
         text = (r.get("message", {}).get("text") or "").replace("\n", " ")[:160]
-        print("\t".join([tool, r.get("ruleId", ""), r.get("level", ""),
+        print("\t".join([tool, rule_id, r.get("level") or levels.get(rule_id, ""),
                          uri, str(line), text]))
 ' "$SARIF" >> "$DIR/findings.tsv"
     done
