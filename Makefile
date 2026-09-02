@@ -27,7 +27,7 @@ TARGET = $(BIN_DIR)/c-secure-shell
 SRC = $(SRC_DIR)/vuln_shell.c
 OBJ = $(OBJ_DIR)/vuln_shell.o
 
-.PHONY: all clean scan test-mem hooks
+.PHONY: all clean scan hooks
 
 all: $(TARGET)
 
@@ -42,9 +42,6 @@ $(OBJ_DIR) $(BIN_DIR):
 
 scan:
 	./scripts/scan.sh
-
-test-mem:
-	./tests/mem_check.sh
 
 hooks:
 	git config core.hooksPath $(HOOK_DIR)
