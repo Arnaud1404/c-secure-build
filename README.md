@@ -41,13 +41,20 @@ Jump to: [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sa
 
 ## The vulnerable target
 
-`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. At the `v0-vulnerable` tag it also carried three planted defects: a memory leak through a file-scoped pointer, an unbounded copy next to it, and an `fprintf` that printed a heap address.
+`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. Two tags freeze it in a state the gate refuses:
+
+| Tag | Planted defects | What blocks |
+|---|---|---|
+| `v0-vulnerable` | Memory leak through a file-scoped pointer, an unbounded copy next to it, an `fprintf` printing a heap address | **Valgrind only.** Both static probes exit 0 |
+| `v1-vulnerable` | `strcpy` of the input line into a 32-byte global (CWE-120/787), and a `history` builtin passing its argument to `printf` as the format (CWE-134) | **Flawfinder and Semgrep**, at `error`; Valgrind blocks too |
+
+The second tag exists because the first one only ever exercised the dynamic half of the gate. Four engines was a claim; `v1-vulnerable` is the evidence for the other two.
 
 This is not a secure shell implementation, and it is not trying to be one. The defects are there so the analysis engines have something to find, and so the before/after is a real diff rather than a claim.
 
 ### Why the vulnerable state is a tag and not a branch
 
-`v0-vulnerable` is a tag on `main`'s own history, not a parallel branch, and that is deliberate. A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. The tag is frozen instead: it is the commit the gate actually blocked, the fix is the next commit, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." A second vulnerable iteration, if it ever happens, is a new tag — the annotated tag is published, and published tags do not get rewritten.
+`v0-vulnerable` is a tag on `main`'s own history, not a parallel branch, and that is deliberate. A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. The tag is frozen instead: it is the commit the gate actually blocked, the fix is the next commit, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." A second vulnerable iteration is a new tag, which is what `v1-vulnerable` is — annotated, published, and never rewritten.
 
 ## The multi-engine SARIF gate
 
@@ -57,7 +64,7 @@ Four engines, two static and two dynamic:
 |---|---|---|
 | **Flawfinder** | Lexical | Matches dangerous POSIX API names against a fixed list |
 | **Semgrep** | Syntactic | 49 vendored rules from [0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT) |
-| **Valgrind** | Dynamic | Leak and error detection at runtime; its verdict is the gate's blocker |
+| **Valgrind** | Dynamic | Leak and error detection at runtime; the only engine that blocked at `v0-vulnerable` |
 | **AddressSanitizer** | Dynamic | Instrumented builds, on by default |
 
 Both static engines emit SARIF themselves, so no wrapper translates one format into another.
@@ -183,7 +190,9 @@ make scan             # static reports + the Valgrind gate
 
 Make compares timestamps and has no way of noticing that a variable changed, so switching between those three modes needs a `make clean` first. Without it the objects still look up to date and you get back a binary built with the previous flags. `make scan` cleans and rebuilds on its own, because running Valgrind against an ASan binary does not work.
 
-`scripts/scan.sh` exits 0 when nothing blocks, 1 when a finding does, and 2 when a scanner is missing and nothing was scanned at all. The hook and CI call the script directly to preserve that last distinction: Make reports every recipe failure as its own exit 2, which would turn a broken toolchain into what looks like a security finding. `make scan` is the convenience wrapper for running the gate by hand.
+`scripts/scan.sh` exits 0 when nothing blocks, 1 when a finding does, and 2 when nothing was scanned at all — a missing scanner, an engine that failed to write a report, or a block pass that exited with something other than "findings" or "no findings". The hook and CI call the script directly to preserve that last distinction: Make reports every recipe failure as its own exit 2, which would turn a broken toolchain into what looks like a security finding. `make scan` is the convenience wrapper for running the gate by hand.
+
+Exit 2 is the case that is easy to get wrong, and this repo got it wrong once. Both report passes used to end in `|| true`, so a semgrep that crashed wrote no SARIF and the gate still printed `scan clean` — and the published dataset shipped a `HEAD/` directory with an entire engine's report missing. An engine that cannot run has not cleared the code, it has only failed to look at it. The write-up is in [`docs/security-report-v0-vulnerable.md`](docs/security-report-v0-vulnerable.md).
 
 ### The pre-commit hook
 
@@ -204,8 +213,10 @@ That points `core.hooksPath` at `.githooks/`. The hook runs the build and `make 
 ```
 c-secure-build/
 ├── src/vuln_shell.c            # the target
-├── tests/vuln_shell_commands.txt  # the payload the Valgrind gate runs
+├── tests/vuln_shell_commands.txt  # the payload the dynamic engines run
 ├── scripts/scan.sh             # static reports + the Valgrind gate; blocks on either
+├── scripts/collect_security_data.sh  # rebuilds the before/after dataset
+├── docs/                       # one security report per vulnerable tag
 ├── .semgrep/rules/             # vendored pack + NOTICE
 ├── .githooks/pre-commit        # installed by `make hooks`
 ├── .github/workflows/ci.yml    # build matrix, gate, SARIF upload, secret scan
@@ -215,11 +226,17 @@ c-secure-build/
 
 ## Security data & release
 
-The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v0-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. The write-up lives in [`docs/security-report-v0-vulnerable.md`](docs/security-report-v0-vulnerable.md).
+The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v0-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
 
 ```bash
-scripts/collect_security_data.sh      # rebuild .security-report/
+scripts/collect_security_data.sh                      # v0-vulnerable vs HEAD
+scripts/collect_security_data.sh v1-vulnerable HEAD   # v1-vulnerable vs HEAD
 ```
+
+One write-up per vulnerable tag:
+
+- [`docs/security-report-v0-vulnerable.md`](docs/security-report-v0-vulnerable.md) — the leak no static rule matched, and why Valgrind was the only engine that blocked.
+- [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md) — the two defects that block on Flawfinder and Semgrep at `error`, why `-Wformat-security` and `-Wstringop-overflow` let both through, and why `_FORTIFY_SOURCE=3` preempted AddressSanitizer.
 
 CI also runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
 

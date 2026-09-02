@@ -1,11 +1,11 @@
 # Security report: `v0-vulnerable` vs HEAD
 
-Generated locally on Debian 12 (flawfinder 2.0.20, semgrep 1.173.0, valgrind 3.24.0) with `scripts/collect_security_data.sh`. Every number below can be regenerated with that one command; the raw SARIF, Valgrind and ASan logs ship next to this file in the release asset.
+Generated locally on Debian 13 (trixie) with flawfinder 2.0.20, semgrep 1.173.0 and valgrind 3.24.0, via `scripts/collect_security_data.sh`. Every number below can be regenerated with that one command; the raw SARIF, Valgrind and ASan logs ship next to this file in the release asset. HEAD moves, so its exact SHA is recorded in `.security-report/HEAD/commit.txt` rather than pinned here.
 
 | Ref | Commit | Static gate | Flawfinder probe | Semgrep probe | Valgrind | ASan run |
 |---|---|---|---|---|---|---|
 | `v0-vulnerable` | `72d0268` (2026-08-23) | **BLOCKED, exit 1** | exit 0 (report only) | exit 0 (report only) | **128 B reachable leak = 1 error (exit 7 with `--error-exitcode=7`) — blocks** | clean, exit 0 |
-| `HEAD` (main) | `6809727` (2026-08-31) | **scan clean, exit 0** | exit 0 | exit 0 | "All heap blocks were freed", exit 0 | clean, exit 0 |
+| `HEAD` (main) | see `HEAD/commit.txt` | **scan clean, exit 0** | exit 0 | exit 0 | "All heap blocks were freed", exit 0 | clean, exit 0 |
 
 The gate flips exactly as the README claims, and the single blocking signal is Valgrind's still-reachable-leak error — a general-purpose dynamic analyzer with no rule written for this bug. The first version of this pipeline blocked on a local semgrep rule aimed at the leak instead; that rule was removed on purpose, because a rule written for the bug proves the rule, not the pipeline.
 
@@ -49,6 +49,7 @@ At HEAD only 8 findings remain (flawfinder 3, semgrep 5), all of the false-posit
 - **The block comes from exactly one place: the Valgrind gate.** Flawfinder's probe (`--error-level=4`) exits 0 at the tag — all five of its findings are note-level — and no vendored semgrep rule above WARNING fires on this code. The vendored pack's ERROR-severity rules (strcpy/strcat, double-free, use-after-free, format strings, gets, scanf) match none of the planted defects; the only ERROR hit the tag ever produced came from a local rule written for the leak, and that rule is gone.
 - **Valgrind needs `--error-exitcode` to matter.** Memcheck reports the reachable leak and prints `ERROR SUMMARY: 1`, but without `--error-exitcode` it still exits 0 (it propagates the client's exit status). `scripts/scan.sh` sets `--error-exitcode=1` alongside `--errors-for-leak-kinds=all`, which is what turns the reachable leak into a gate signal. The flags live in the gate itself, not in a test script a historical commit could freeze with the opposite polarity — the tag's own `tests/mem_check.sh` expected the leak rather than blocking on it.
 - **ASan is the control group.** LSan's global-root suppression stays silent on B1, which is why the pipeline runs four engines instead of trusting one.
+- **An earlier draft of this report was not backed by its own dataset.** The two report passes in `scripts/scan.sh` ended in `|| true`, so a semgrep that exited 2 wrote no SARIF and the gate still printed `scan clean`. That happened: the published `HEAD/` directory shipped without `semgrep.sarif`, and the eight findings claimed above for HEAD were three in the data. The gate now exits 2 when either engine fails to produce a non-empty report, and the collector refuses to write a partial dataset. Every count in this report is regenerated under those rules and matches `findings.tsv`. The lesson is the one the pipeline exists to teach, turned on the pipeline itself: an engine that cannot run has not cleared the code, it has only failed to look at it.
 
 ## Reproduce and retrieve
 
@@ -57,4 +58,6 @@ scripts/collect_security_data.sh        # rebuilds .security-report/ (v0-vulnera
 ```
 
 CI publishes the same dataset automatically whenever a `v*` tag is pushed (job `security-data release` in `.github/workflows/ci.yml`), attaching `security-data-<tag>.zip` to a release on that tag.
+
+The second vulnerable iteration, which blocks on the static engines instead of the dynamic one, is written up in [`security-report-v1-vulnerable.md`](security-report-v1-vulnerable.md).
 
