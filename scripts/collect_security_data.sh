@@ -63,25 +63,53 @@ for REF in "${REFS[@]}"; do
     set +e
     (cd "$WORKTREE" && ./scripts/scan.sh) \
         > "$DIR/gate.txt" 2>&1
-    echo "scan_exit=$?" >> "$DIR/gate.txt"
+    scan_status=$?
+    set -e
+    echo "scan_exit=$scan_status" >> "$DIR/gate.txt"
 
+    # 0 and 1 are verdicts on the code; anything else is the gate failing to
+    # run. Publishing a dataset built on that would ship a number nobody can
+    # read, so stop instead.
+    if [ "$scan_status" -gt 1 ]; then
+        echo "ERROR: the gate could not run at $REF (exit $scan_status)." >&2
+        echo "See $DIR/gate.txt. Refusing to write a partial dataset." >&2
+        exit 1
+    fi
+
+    set +e
     (cd "$WORKTREE" && flawfinder --quiet --error-level=4 src/ > /dev/null 2>&1)
-    echo "flawfinder_block_exit=$?" > "$DIR/gate-probes.txt"
+    ff_probe=$?
     (cd "$WORKTREE" && semgrep --config .semgrep/rules/ \
         --severity=ERROR --error --quiet src/ > /dev/null 2>&1)
-    probe_status=$?
+    sg_probe=$?
     # Exit 2 is semgrep failing to run (OOM under load, worker crash), not
     # findings. Retry once so a flaky runner cannot masquerade as a signal.
-    if [ "$probe_status" -eq 2 ]; then
+    if [ "$sg_probe" -eq 2 ]; then
         sleep 2
         (cd "$WORKTREE" && semgrep --config .semgrep/rules/ \
             --severity=ERROR --error --quiet src/ > /dev/null 2>&1)
-        probe_status=$?
+        sg_probe=$?
     fi
-    echo "semgrep_block_exit=$probe_status" >> "$DIR/gate-probes.txt"
     set -e
 
-    cp "$WORKTREE"/.security/*.sarif "$DIR/sarif/" 2>/dev/null || true
+    echo "flawfinder_block_exit=$ff_probe" > "$DIR/gate-probes.txt"
+    echo "semgrep_block_exit=$sg_probe" >> "$DIR/gate-probes.txt"
+
+    for PROBE in "flawfinder:$ff_probe" "semgrep:$sg_probe"; do
+        if [ "${PROBE#*:}" -gt 1 ]; then
+            echo "ERROR: the ${PROBE%%:*} block probe failed at $REF" >&2
+            echo "with exit ${PROBE#*:}, which is not a verdict." >&2
+            exit 1
+        fi
+    done
+
+    cp "$WORKTREE"/.security/*.sarif "$DIR/sarif/"
+    for ENGINE in flawfinder semgrep; do
+        if [ ! -s "$DIR/sarif/$ENGINE.sarif" ]; then
+            echo "ERROR: $ENGINE produced no SARIF at $REF." >&2
+            exit 1
+        fi
+    done
 
     : > "$DIR/findings.tsv"
     for SARIF in "$DIR"/sarif/*.sarif; do
@@ -100,7 +128,7 @@ for run in data.get("runs", []):
         text = (r.get("message", {}).get("text") or "").replace("\n", " ")[:160]
         print("\t".join([tool, r.get("ruleId", ""), r.get("level", ""),
                          uri, str(line), text]))
-' "$SARIF" >> "$DIR/findings.tsv" 2>/dev/null || true
+' "$SARIF" >> "$DIR/findings.tsv"
     done
 
     echo "== $REF: raw Valgrind log"
