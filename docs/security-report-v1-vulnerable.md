@@ -2,25 +2,14 @@
 
 Generated locally on Debian 13 (trixie) with flawfinder 2.0.20, semgrep 1.173.0 and valgrind 3.24.0, via `scripts/collect_security_data.sh v1-vulnerable HEAD`. HEAD moves, so its exact SHA is recorded in `.security-report/HEAD/commit.txt` rather than pinned here.
 
-## Why a second vulnerable tag
+## Why these defects
 
-At `v0-vulnerable` the gate blocked, and the whole block came from Valgrind. Both static probes exited 0:
-
-```
-.security-report/v0-vulnerable/gate-probes.txt
-flawfinder_block_exit=0
-semgrep_block_exit=0
-```
-
-That is a real result — a general-purpose dynamic analyzer caught a leak no vendored rule matched — but it left half the gate as an untested claim. The README sells four engines; only one had ever refused a commit. `v1-vulnerable` plants defects the *static* engines block on, so the other path has evidence behind it too.
+The gate runs four engines, two static and two dynamic. `v1-vulnerable` plants defects that reach all four, so every engine in the pipeline has concrete evidence behind it rather than being a claim in the README.
 
 | Ref | Commit | Static gate | Flawfinder probe | Semgrep probe | Valgrind | ASan run |
 |---|---|---|---|---|---|---|
-| `v0-vulnerable` | `72d0268` (2026-08-23) | **BLOCKED, exit 1** | exit 0 | exit 0 | **blocks** (exit 7) | clean, exit 0 |
 | `v1-vulnerable` | `b27a04d` (2026-09-02) | **BLOCKED, exit 1** | **exit 1 — blocks** | **exit 1 — blocks** | **blocks** (exit 7) | **abort, exit 134** |
 | `HEAD` (main) | see `HEAD/commit.txt` | **scan clean, exit 0** | exit 0 | exit 0 | clean, exit 0 | clean, exit 0 |
-
-Every engine in the gate has now demonstrably refused a commit, on one tag or the other.
 
 ## The planted defects
 
@@ -65,7 +54,7 @@ Neither is an argument for adding `-Wformat-nonliteral`; it is noisy on correct 
 
 ## What each engine caught at `v1-vulnerable`
 
-14 findings total: flawfinder 6, semgrep 8. **Four are at `error`**, and those four are what block.
+14 findings total: flawfinder 6, semgrep 8. **Four are at `error`**, and those four are what block. The rest sit at `warning` or `note` — severity, not finding count, is what the gate reads.
 
 | Engine | Rule | Line | Level | Verdict |
 |---|---|---|---|---|
@@ -78,8 +67,6 @@ Neither is an argument for adding `-Wformat-nonliteral`; it is noisy on correct 
 | Flawfinder | `FF1016` printf format string | 72, 78 | note | False positives: both formats are constants. |
 | Flawfinder | `FF1022` `strlen` over-read (CWE-126) | 86 | note | False positive: `getline` guarantees NUL termination. |
 | Semgrep | `raptor-mismatched-memory-management` | 109 | note | False positive: `free()` on a `getline` buffer. Written up in `.semgrep/rules/NOTICE.md`. |
-
-Note the contrast with `v0-vulnerable`, where all 15 findings sat at `warning` or below and the static probes therefore passed. Severity, not finding count, is what the gate reads.
 
 ## What the dynamic engines actually did
 
@@ -106,9 +93,7 @@ That is `_FORTIFY_SOURCE=3`'s check running inside Valgrind's `vg_replace_strmem
 *** buffer overflow detected ***: terminated
 ```
 
-No `global-buffer-overflow` report, no redzone trace. glibc's `__strcpy_chk` aborts before AddressSanitizer's instrumentation gets to describe the write. The hardening flag preempts the sanitizer, which is good for a shipped binary and worse for a diagnosis: had this been a real investigation, the useful output would have needed a build with `_FORTIFY_SOURCE` disabled.
-
-This is the mirror image of `v0-vulnerable`, where LeakSanitizer's global-root suppression stayed silent and Valgrind was the one with something to say. Neither dynamic engine dominates the other. That is the argument for running both.
+No `global-buffer-overflow` report, no redzone trace. glibc's `__strcpy_chk` aborts before AddressSanitizer's instrumentation gets to describe the write. The hardening flag preempts the sanitizer, which is good for a shipped binary and worse for a diagnosis: had this been a real investigation, the useful output would have needed a build with `_FORTIFY_SOURCE` disabled. Neither dynamic engine dominates the other, which is the argument for running both.
 
 ## The hook rejects this commit
 
@@ -131,5 +116,3 @@ This is also the first commit the hook has ever refused for real, for an unglamo
 ```bash
 scripts/collect_security_data.sh v1-vulnerable HEAD
 ```
-
-The v0 analysis, and the reasoning for freezing each vulnerable state as a tag rather than a branch, are in [`security-report-v0-vulnerable.md`](security-report-v0-vulnerable.md).
