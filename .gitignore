@@ -1,6 +1,8 @@
 bin/
 obj/
 .security/
+.security-report/
+security-data-*.zip
 scripts/optional/
 __pycache__/
 .venv/
