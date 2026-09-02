@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 set -u
 
-echo "pre-commit: build, memory gate, security gate"
+echo "pre-commit: build, security gate"
 
 if ! make > /dev/null 2>&1; then
     echo "BLOCKED: the code does not build." >&2
-    exit 1
-fi
-
-if ! make test-mem > /dev/null 2>&1; then
-    echo "BLOCKED: Valgrind found a memory error. Run 'make test-mem'." >&2
     exit 1
 fi
 

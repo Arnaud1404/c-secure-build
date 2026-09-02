@@ -1,0 +1,238 @@
+# c-secure-build
+
+[![CI](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml)
+
+A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline that finds them and blocks commits until they are fixed.
+
+The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v0-vulnerable` tag and exits 0 on `main`, one commit later.
+
+## Pipeline at a glance
+
+```mermaid
+flowchart TD
+    A[".githooks/pre-commit"] --> B["make, then scripts/scan.sh"]
+    B --> C["security gate"]
+    C --> C1["flawfinder --sarif"]
+    C --> C2["semgrep --sarif"]
+    C --> C3["valgrind --error-exitcode=1"]
+    C1 & C2 & C3 --> D{"any gate fails?"}
+    D -->|yes| E["commit rejected"]
+    D -->|no| F["commit created"]
+
+    F --> G["git push / pull request"]
+
+    subgraph CI["CI: .github/workflows/ci.yml"]
+        G --> H1["build gcc"]
+        G --> H2["build clang"]
+        G --> H3["security gate: make scan"]
+        G --> H4["secret scan: gitleaks"]
+        H3 --> S1["SARIF: flawfinder / semgrep"]
+        H4 --> S2["SARIF: gitleaks"]
+        S1 --> T["Security tab (3 categories)"]
+        S2 --> T
+    end
+
+    H1 & H2 & H3 & H4 --> P{"branch protection:<br/>required checks green?"}
+    P -->|no| M["merge blocked"]
+    P -->|yes| N["merge allowed"]
+```
+
+Jump to: [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sarif-gate) · [CI](#the-ci-pipeline) · [quick start](#quick-start)
+
+## The vulnerable target
+
+`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. At the `v0-vulnerable` tag it also carried three planted defects: a memory leak through a file-scoped pointer, an unbounded copy next to it, and an `fprintf` that printed a heap address.
+
+This is not a secure shell implementation, and it is not trying to be one. The defects are there so the analysis engines have something to find, and so the before/after is a real diff rather than a claim.
+
+### Why the vulnerable state is a tag and not a branch
+
+`v0-vulnerable` is a tag on `main`'s own history, not a parallel branch, and that is deliberate. A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. The tag is frozen instead: it is the commit the gate actually blocked, the fix is the next commit, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." A second vulnerable iteration, if it ever happens, is a new tag — the annotated tag is published, and published tags do not get rewritten.
+
+## The multi-engine SARIF gate
+
+Four engines, two static and two dynamic:
+
+| Engine | Kind | What it does here |
+|---|---|---|
+| **Flawfinder** | Lexical | Matches dangerous POSIX API names against a fixed list |
+| **Semgrep** | Syntactic | 49 vendored rules from [0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT) |
+| **Valgrind** | Dynamic | Leak and error detection at runtime; its verdict is the gate's blocker |
+| **AddressSanitizer** | Dynamic | Instrumented builds, on by default |
+
+Both static engines emit SARIF themselves, so no wrapper translates one format into another.
+
+Both static engines run twice: unfiltered first, writing the SARIF report, then at the tool's own error threshold, and that second exit code is part of what decides whether the commit is blocked. Valgrind runs once — it has no report to keep, only a verdict — and its exit code is part of the same decision. Splitting the static pair means the report keeps every low-severity finding whether or not anything blocks. `make scan` is the entry point; reports land in `.security/*.sarif` and `.security/valgrind.log`.
+
+`scripts/optional/cvss_triage.py` scores SARIF findings against a hand-built CVSS v3.1 table sourced from MITRE's CWE pages and the FIRST spec. It works, and it is not wired into `make scan`. Filling that table took about two dozen judgment calls I was able to defend but not prove, which is the wrong shape of work for a gate that has to answer pass or fail. It stays out of the repo, since "evaluated CVSS contextualisation" is a true thing to say and "shipped a risk-scoring pipeline" is not.
+
+### The delta: `v0-vulnerable` → `main`
+
+The vendored Semgrep pack has a rule for freeing twice and a rule for freeing the wrong thing, but nothing for never freeing at all. I did write a local rule to close that, then deleted it again: a rule written for the bug proves the rule, not the pipeline. What proves the leak is Valgrind — `128 bytes in 1 blocks are still reachable`, stack trace ending at `trigger_memory_leak (vuln_shell.c:18)`, turned into a gate signal by `--error-exitcode`.
+
+| Planted defect | Location | Flawfinder | Semgrep | Valgrind |
+|---|---|---|---|---|
+| Memory leak (global pointer) | `vuln_shell.c:18` | · | warning | **blocked** |
+| `strncpy` misuse pattern | `vuln_shell.c:23` | note | warning | · |
+| Address disclosure via `%p` | `vuln_shell.c:108` | note | note | · |
+| `strlen` on possibly unterminated input | `vuln_shell.c:90` | note | · | · |
+| Non-literal format string | `vuln_shell.c:76,82` | note | · | · |
+
+`·` means that engine found nothing for that defect.
+
+**15 findings (Flawfinder 5, Semgrep 10), none at `error`. `make scan` exits 1 anyway: the block is Valgrind's.**
+
+The next commit deletes the defect and everything built to support it. `trigger_memory_leak()` and the `globally_leaked_ptr` global are gone, along with the `fprintf` that leaked the address. Three of the five rows above close at once, because the `strncpy` lived inside that same function.
+
+Patching the function instead would have passed the gate too: allocate, wipe, free, null the pointer, done. But that leaves a function that does nothing, under a name that says it leaks memory. The scaffolding was part of the defect, so it went with it.
+
+| Planted defect | Status | Flawfinder | Semgrep | Valgrind |
+|---|---|---|---|---|
+| Memory leak (global pointer) | **removed** with `trigger_memory_leak()` | · | · | clean |
+| `strncpy` misuse pattern | **removed** (same function) | · | · | · |
+| Address disclosure via `%p` | **removed** (line deleted) | · | · | · |
+| `strlen` on possibly unterminated input | inherent to the call, not a bug | note | · | · |
+| Non-literal format string | inherent to the call, not a bug | note | · | · |
+
+**8 findings (Flawfinder 3, Semgrep 5), none at `error`. `make scan` exits 0.**
+
+### What the remaining eight are
+
+Neither of the two surviving rows is a bug. Flawfinder flags `strlen` and any `printf` whose format argument is not obviously a literal, without looking at whether the surrounding code is correct. Here it is: `getline` guarantees the buffer it returns is null-terminated, so `strlen` is safe on it.
+
+Semgrep's five are four `interesting-api-calls` hits at `warning` on `strtok_r`, `fork` and `execvp`, plus one false positive on `free(input_buffer)`. That last one is `raptor-mismatched-memory-management`, and it fires because `getline` is not in the rule's list of tracked allocators, so it sees a `free` with no matching allocation. Written up in `.semgrep/rules/NOTICE.md`.
+
+`explicit_bzero(input_buffer, buffer_size)` sits in `main()`, wiping the `getline` buffer before `free()`. It was there before the remediation and it stayed, because it is justified on its own: that buffer holds whatever was typed at the prompt, which in a shell includes anything passed as a command argument. It takes `getline`'s `n`, the allocated size, rather than `strlen`, since `strlen` stops at the first null and would leave the rest of the buffer intact.
+
+## The CI pipeline
+
+The hook and CI run the same gates. The difference is that `git commit --no-verify` skips a hook, and nothing skips a required status check.
+
+| Job | What it does |
+|---|---|
+| `build (gcc)` / `build (clang)` | Hardened build under both compilers |
+| `security gate` | `make scan`, then one SARIF upload per engine |
+| `secret scan` | `gitleaks` over the full history, uploaded as its own category |
+
+Three categories reach the Security tab: `flawfinder`, `semgrep`, `gitleaks`. They stay separate. I did write a SARIF merger for this, then deleted it in Phase 7 after measuring what it produced: one cross-tool merge across thirteen findings. Code Scanning takes multiple uploads per commit keyed on `category`, and GitHub's own CodeQL CLI docs describe merging beforehand as a backwards-compatibility path, so the categories carry the same information without the code. The merger is still in the history if anyone wants to see what it looked like.
+
+Three things in the workflow that are easy to get wrong:
+
+The gate's exit code is captured into a step output instead of failing its own step. Uploads run under `if: always()`, and a separate step at the end fails the job. If `make scan` failed its step directly, every upload would be skipped and a blocked build would show nothing at all in the Security tab, which recouples the report to the gate. That coupling is exactly what the two-pass split in `scripts/scan.sh` exists to avoid.
+
+Third-party actions are pinned by commit SHA, not tag. Tags move, and whoever owns `actions/checkout@v4` repoints it at will. `gitleaks` is pinned to a version and checked against a published SHA-256 before it runs, rather than curled into a shell.
+
+Scanner versions come from `requirements.txt`, which is also what CI installs, so a local checkout and CI cannot drift apart.
+
+One inconsistency: `valgrind` comes from the runner's apt repository and is not pinned, unlike the scanners and gitleaks. Pinning it means either an apt pin that breaks when the runner image moves, or building from source in CI. Neither seemed worth it, but it is a gap in an otherwise pinned toolchain.
+
+### Branch protection
+
+A workflow file cannot require its own checks. It defines them; someone has to go turn them on. After CI has run once on `main`, require these four:
+
+`build (gcc)`, `build (clang)`, `security gate`, `secret scan`
+
+Through **Settings → Branches → Add branch ruleset**, or:
+
+```bash
+gh api -X PUT repos/Arnaud1404/c-secure-build/branches/main/protection \
+  --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["build (gcc)", "build (clang)", "security gate", "secret scan"]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": null,
+  "restrictions": null
+}
+JSON
+```
+
+`enforce_admins: true` is the part that matters. Without it the rule does not apply to the repo owner, and "the pipeline blocks merges" quietly means "the pipeline blocks merges for everyone except me."
+
+## Quick start
+
+### Prerequisites
+
+- GCC or Clang with C17 support, GNU Make
+- `flawfinder` **2.0.20 or newer** (older versions have no `--sarif`), `semgrep`, `valgrind`
+- `valgrind` is a distribution package: `sudo apt install valgrind` on Debian, `sudo dnf install valgrind` on Fedora
+- `gitleaks` runs in CI only, pinned and checksummed there. A local `make scan` does not need it
+
+Both Python scanners are pinned in `requirements.txt`, which is what CI installs too. Debian and Fedora both refuse a system-wide `pip install` under PEP 668, so use a venv in the repo and run the identical command CI runs:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+`scripts/scan.sh` puts `.venv/bin` on `PATH` when that directory exists, so nothing needs activating. Distribution packages will not do here: Debian 13 ships flawfinder 2.0.19, which predates `--sarif`.
+
+### Build and scan
+
+```bash
+make                  # hardened build with ASan/UBSan
+make ASAN=0 all       # without sanitizers
+make VALGRIND=1       # for Valgrind
+
+./bin/c-secure-shell  # run it
+
+make scan             # static reports + the Valgrind gate
+```
+
+Make compares timestamps and has no way of noticing that a variable changed, so switching between those three modes needs a `make clean` first. Without it the objects still look up to date and you get back a binary built with the previous flags. `make scan` cleans and rebuilds on its own, because running Valgrind against an ASan binary does not work.
+
+`scripts/scan.sh` exits 0 when nothing blocks, 1 when a finding does, and 2 when a scanner is missing and nothing was scanned at all. The hook and CI call the script directly to preserve that last distinction: Make reports every recipe failure as its own exit 2, which would turn a broken toolchain into what looks like a security finding. `make scan` is the convenience wrapper for running the gate by hand.
+
+### The pre-commit hook
+
+Git does not clone hooks, so install it once after cloning:
+
+```bash
+make hooks
+```
+
+That points `core.hooksPath` at `.githooks/`. The hook runs the build and `make scan`, in that order; the scan itself rebuilds under Valgrind, so the memory check lives inside the gate. It is there for fast feedback. CI is the authority, since anyone is free to pass `--no-verify`.
+
+## Hardening flags
+
+`-Wall -Wextra -Werror -pedantic`, `-D_FORTIFY_SOURCE=3`, `-fPIE` / `-pie`, `-fstack-protector-strong`, `-Wformat-security`, and full RELRO (`-Wl,-z,relro,-z,now`).
+
+## Project structure
+
+```
+c-secure-build/
+├── src/vuln_shell.c            # the target
+├── tests/vuln_shell_commands.txt  # the payload the Valgrind gate runs
+├── scripts/scan.sh             # static reports + the Valgrind gate; blocks on either
+├── .semgrep/rules/             # vendored pack + NOTICE
+├── .githooks/pre-commit        # installed by `make hooks`
+├── .github/workflows/ci.yml    # build matrix, gate, SARIF upload, secret scan
+├── Makefile                    # build, scan, hooks
+└── requirements.txt            # pinned scanner versions, shared with CI
+```
+
+## Security data & release
+
+The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v0-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. The write-up lives in [`docs/security-report-v0-vulnerable.md`](docs/security-report-v0-vulnerable.md).
+
+```bash
+scripts/collect_security_data.sh      # rebuild .security-report/
+```
+
+CI also runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
+
+## Regulatory context
+
+Finding vulnerabilities automatically and blocking releases on them is the kind of thing the EU Cyber Resilience Act and NIS2 expect of a development process, and this pipeline does that much. I have not mapped it against specific articles, and there is no SBOM or build provenance here, so nothing in this repo should be read as a compliance claim.
+
+## References
+
+- [POSIX.1-2008 Process Execution](https://pubs.opengroup.org/onlinepubs/9699919799/)
+- [GCC Instrumentation Options](https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html)
+- [SARIF 2.1.0 specification](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
+
+---
+
+**Author:** Arnaud Gomes
