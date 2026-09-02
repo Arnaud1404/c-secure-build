@@ -177,7 +177,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends valgrind zip
 
       - name: Collect the security dataset
-        run: ./scripts/collect_security_data.sh "${GITHUB_REF_NAME}" HEAD
+        run: |
+          # On a tag push HEAD is the tag, so "$REF HEAD" would diff the tag
+          # against itself. The comparison has to be against the branch the
+          # fix landed on. The explicit fetch avoids relying on how deeply
+          # actions/checkout happens to populate remote refs.
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          ./scripts/collect_security_data.sh "${GITHUB_REF_NAME}" origin/main
 
       - name: Package the dataset
         run: zip -qr "security-data-${GITHUB_REF_NAME}.zip" .security-report
