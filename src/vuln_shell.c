@@ -6,6 +6,21 @@
 #include <unistd.h>
 
 #define MAX_ARGS 64
+#define HISTORY_SIZE 32
+
+static char last_command[HISTORY_SIZE];
+
+/* Keeps the most recent command line for the `history` builtin. Must run
+ * before parse_input, which tokenizes the buffer in place. */
+static void record_history(const char* input) {
+  strcpy(last_command, input);
+}
+
+/* Prints the recorded command through a caller-supplied format. */
+static void show_history(const char* format) {
+  printf(format, last_command);
+  putchar('\n');
+}
 
 /* Splits the input string into arguments using strtok_r,
  * modifying the input in-place. */
@@ -71,11 +86,18 @@ int main(void) {
     if (strlen(input_buffer) == 0)
       continue;
 
+    record_history(input_buffer);
+
     char* parsed_args[MAX_ARGS];
     parse_input(input_buffer, parsed_args);
 
     if (parsed_args[0] != NULL && strcmp(parsed_args[0], "exit") == 0) {
       break;
+    }
+
+    if (parsed_args[0] != NULL && strcmp(parsed_args[0], "history") == 0) {
+      show_history(parsed_args[1] == NULL ? "%s" : parsed_args[1]);
+      continue;
     }
 
     execute_command(parsed_args);
