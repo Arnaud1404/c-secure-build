@@ -4,7 +4,7 @@
 
 A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline that finds them and blocks commits until they are fixed.
 
-The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v0-vulnerable` tag and exits 0 on `main`, one commit later.
+The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v1-vulnerable` tag and exits 0 on `main`.
 
 ## Pipeline at a glance
 
@@ -41,20 +41,13 @@ Jump to: [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sa
 
 ## The vulnerable target
 
-`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. Two tags freeze it in a state the gate refuses:
-
-| Tag | Planted defects | What blocks |
-|---|---|---|
-| `v0-vulnerable` | Memory leak through a file-scoped pointer, an unbounded copy next to it, an `fprintf` printing a heap address | **Valgrind only.** Both static probes exit 0 |
-| `v1-vulnerable` | `strcpy` of the input line into a 32-byte global (CWE-120/787), and a `history` builtin passing its argument to `printf` as the format (CWE-134) | **Flawfinder and Semgrep**, at `error`; Valgrind blocks too |
-
-The second tag exists because the first one only ever exercised the dynamic half of the gate. Four engines was a claim; `v1-vulnerable` is the evidence for the other two.
+`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. The `v1-vulnerable` tag freezes it in a state the gate refuses: a `strcpy` of the input line into a 32-byte global (CWE-120/787), and a `history` builtin that passes its argument straight to `printf` as the format (CWE-134). Both are at `error` severity for Flawfinder and Semgrep, and both are caught by Valgrind and AddressSanitizer too — the write-up is in [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md).
 
 This is not a secure shell implementation, and it is not trying to be one. The defects are there so the analysis engines have something to find, and so the before/after is a real diff rather than a claim.
 
 ### Why the vulnerable state is a tag and not a branch
 
-`v0-vulnerable` is a tag on `main`'s own history, not a parallel branch, and that is deliberate. A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. The tag is frozen instead: it is the commit the gate actually blocked, the fix is the next commit, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." A second vulnerable iteration is a new tag, which is what `v1-vulnerable` is — annotated, published, and never rewritten.
+A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. A tag is frozen instead, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." The annotated tag is published, and published tags do not get rewritten.
 
 ## The multi-engine SARIF gate
 
@@ -64,7 +57,7 @@ Four engines, two static and two dynamic:
 |---|---|---|
 | **Flawfinder** | Lexical | Matches dangerous POSIX API names against a fixed list |
 | **Semgrep** | Syntactic | 49 vendored rules from [0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT) |
-| **Valgrind** | Dynamic | Leak and error detection at runtime; the only engine that blocked at `v0-vulnerable` |
+| **Valgrind** | Dynamic | Leak and error detection at runtime |
 | **AddressSanitizer** | Dynamic | Instrumented builds, on by default |
 
 Both static engines emit SARIF themselves, so no wrapper translates one format into another.
@@ -73,41 +66,20 @@ Both static engines run twice: unfiltered first, writing the SARIF report, then 
 
 `scripts/optional/cvss_triage.py` scores SARIF findings against a hand-built CVSS v3.1 table sourced from MITRE's CWE pages and the FIRST spec. It works, and it is not wired into `make scan`. Filling that table took about two dozen judgment calls I was able to defend but not prove, which is the wrong shape of work for a gate that has to answer pass or fail. It stays out of the repo, since "evaluated CVSS contextualisation" is a true thing to say and "shipped a risk-scoring pipeline" is not.
 
-### The delta: `v0-vulnerable` → `main`
+### The delta: `v1-vulnerable` → `main`
 
-The vendored Semgrep pack has a rule for freeing twice and a rule for freeing the wrong thing, but nothing for never freeing at all. I did write a local rule to close that, then deleted it again: a rule written for the bug proves the rule, not the pipeline. What proves the leak is Valgrind — `128 bytes in 1 blocks are still reachable`, stack trace ending at `trigger_memory_leak (vuln_shell.c:18)`, turned into a gate signal by `--error-exitcode`.
+`record_history()` `strcpy`s the raw input line into a 32-byte global, and `show_history()` hands the `history` builtin's argument straight to `printf` as the format string. Both survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang — `-Wformat-security` only fires on a non-literal format with no arguments, and GCC can't see the length of a `const char*` parameter at compile time — so the compiler hands both to the scanners instead of catching them first.
 
-| Planted defect | Location | Flawfinder | Semgrep | Valgrind |
+| Engine | Rule | Line | Level | Verdict |
 |---|---|---|---|---|
-| Memory leak (global pointer) | `vuln_shell.c:18` | · | warning | **blocked** |
-| `strncpy` misuse pattern | `vuln_shell.c:23` | note | warning | · |
-| Address disclosure via `%p` | `vuln_shell.c:108` | note | note | · |
-| `strlen` on possibly unterminated input | `vuln_shell.c:90` | note | · | · |
-| Non-literal format string | `vuln_shell.c:76,82` | note | · | · |
+| Flawfinder | `FF1001` `strcpy` [MS-banned] | 16 | **error** | strcpy overflow |
+| Semgrep | `raptor-insecure-api-strcpy-strcat` | 16 | **error** | strcpy overflow |
+| Flawfinder | `FF1016` printf format string | 21 | **error** | format string |
+| Semgrep | `raptor-format-string-bugs` | 21 | **error** | format string |
 
-`·` means that engine found nothing for that defect.
+**14 findings (Flawfinder 6, Semgrep 8), four at `error`. Flawfinder and Semgrep both block, and so do Valgrind and AddressSanitizer.** Full defect writeup, including why Valgrind blocks through its `_FORTIFY_SOURCE` replacement of `strcpy` rather than through Memcheck, and why AddressSanitizer never gets a chance to report because glibc's fortify check aborts first: [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md).
 
-**15 findings (Flawfinder 5, Semgrep 10), none at `error`. `make scan` exits 1 anyway: the block is Valgrind's.**
-
-The next commit deletes the defect and everything built to support it. `trigger_memory_leak()` and the `globally_leaked_ptr` global are gone, along with the `fprintf` that leaked the address. Three of the five rows above close at once, because the `strncpy` lived inside that same function.
-
-Patching the function instead would have passed the gate too: allocate, wipe, free, null the pointer, done. But that leaves a function that does nothing, under a name that says it leaks memory. The scaffolding was part of the defect, so it went with it.
-
-| Planted defect | Status | Flawfinder | Semgrep | Valgrind |
-|---|---|---|---|---|
-| Memory leak (global pointer) | **removed** with `trigger_memory_leak()` | · | · | clean |
-| `strncpy` misuse pattern | **removed** (same function) | · | · | · |
-| Address disclosure via `%p` | **removed** (line deleted) | · | · | · |
-| `strlen` on possibly unterminated input | inherent to the call, not a bug | note | · | · |
-| Non-literal format string | inherent to the call, not a bug | note | · | · |
-
-**8 findings (Flawfinder 3, Semgrep 5), none at `error`. `make scan` exits 0.**
-
-### What the remaining eight are
-
-Neither of the two surviving rows is a bug. Flawfinder flags `strlen` and any `printf` whose format argument is not obviously a literal, without looking at whether the surrounding code is correct. Here it is: `getline` guarantees the buffer it returns is null-terminated, so `strlen` is safe on it.
-
-Semgrep's five are four `interesting-api-calls` hits at `warning` on `strtok_r`, `fork` and `execvp`, plus one false positive on `free(input_buffer)`. That last one is `raptor-mismatched-memory-management`, and it fires because `getline` is not in the rule's list of tracked allocators, so it sees a `free` with no matching allocation. Written up in `.semgrep/rules/NOTICE.md`.
+At `main`, neither function exists. **8 findings (Flawfinder 3, Semgrep 5), none at `error`, `make scan` exits 0.** The two surviving rows are not bugs: Flawfinder flags `strlen` and any non-literal `printf` format without checking whether the surrounding code is correct — `getline` guarantees NUL termination, so `strlen` is safe on it — and Semgrep's five are four `interesting-api-calls` audit hits (`strtok_r`, `fork`, `execvp`) plus one false positive on `free(input_buffer)`, `raptor-mismatched-memory-management`, because `getline` is not in the rule's list of tracked allocators. Written up in `.semgrep/rules/NOTICE.md`.
 
 `explicit_bzero(input_buffer, buffer_size)` sits in `main()`, wiping the `getline` buffer before `free()`. It was there before the remediation and it stayed, because it is justified on its own: that buffer holds whatever was typed at the prompt, which in a shell includes anything passed as a command argument. It takes `getline`'s `n`, the allocated size, rather than `strlen`, since `strlen` stops at the first null and would leave the rest of the buffer intact.
 
@@ -192,7 +164,7 @@ Make compares timestamps and has no way of noticing that a variable changed, so 
 
 `scripts/scan.sh` exits 0 when nothing blocks, 1 when a finding does, and 2 when nothing was scanned at all — a missing scanner, an engine that failed to write a report, or a block pass that exited with something other than "findings" or "no findings". The hook and CI call the script directly to preserve that last distinction: Make reports every recipe failure as its own exit 2, which would turn a broken toolchain into what looks like a security finding. `make scan` is the convenience wrapper for running the gate by hand.
 
-Exit 2 is the case that is easy to get wrong, and this repo got it wrong once. Both report passes used to end in `|| true`, so a semgrep that crashed wrote no SARIF and the gate still printed `scan clean` — and the published dataset shipped a `HEAD/` directory with an entire engine's report missing. An engine that cannot run has not cleared the code, it has only failed to look at it. The write-up is in [`docs/security-report-v0-vulnerable.md`](docs/security-report-v0-vulnerable.md).
+Exit 2 is the case that is easy to get wrong, and this repo got it wrong once: both report passes used to end in `|| true`, so a semgrep that crashed wrote no SARIF and the gate still printed `scan clean`. An engine that cannot run has not cleared the code, it has only failed to look at it. `scripts/collect_security_data.sh` now refuses to write a dataset if that happens, rather than shipping one silently missing an engine's report.
 
 ### The pre-commit hook
 
@@ -216,7 +188,7 @@ c-secure-build/
 ├── tests/vuln_shell_commands.txt  # the payload the dynamic engines run
 ├── scripts/scan.sh             # static reports + the Valgrind gate; blocks on either
 ├── scripts/collect_security_data.sh  # rebuilds the before/after dataset
-├── docs/                       # one security report per vulnerable tag
+├── docs/                       # the security report
 ├── .semgrep/rules/             # vendored pack + NOTICE
 ├── .githooks/pre-commit        # installed by `make hooks`
 ├── .github/workflows/ci.yml    # build matrix, gate, SARIF upload, secret scan
@@ -226,17 +198,13 @@ c-secure-build/
 
 ## Security data & release
 
-The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v0-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
+The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v1-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
 
 ```bash
-scripts/collect_security_data.sh                      # v0-vulnerable vs HEAD
-scripts/collect_security_data.sh v1-vulnerable HEAD   # v1-vulnerable vs HEAD
+scripts/collect_security_data.sh      # v1-vulnerable vs HEAD
 ```
 
-One write-up per vulnerable tag:
-
-- [`docs/security-report-v0-vulnerable.md`](docs/security-report-v0-vulnerable.md) — the leak no static rule matched, and why Valgrind was the only engine that blocked.
-- [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md) — the two defects that block on Flawfinder and Semgrep at `error`, why `-Wformat-security` and `-Wstringop-overflow` let both through, and why `_FORTIFY_SOURCE=3` preempted AddressSanitizer.
+The write-up: [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md) — the two defects that block on Flawfinder and Semgrep at `error`, why `-Wformat-security` and `-Wstringop-overflow` let both through, and why `_FORTIFY_SOURCE=3` preempted AddressSanitizer.
 
 CI also runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
 

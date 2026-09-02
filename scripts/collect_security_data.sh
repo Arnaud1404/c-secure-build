@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerates the full before/after security dataset for this repository.
 #
-# For every git ref given on the command line (default: v0-vulnerable and
+# For every git ref given on the command line (default: v1-vulnerable and
 # HEAD) this script checks the ref out into a temporary worktree and runs:
 #
 #   - scripts/scan.sh            (flawfinder + semgrep reports, Valgrind gate)
@@ -10,8 +10,9 @@
 #   - an AddressSanitizer/UBSan build plus one run against the payload
 #   - a python3 extraction of every SARIF result into findings.tsv
 #
-# It also writes the v0..HEAD patch for src/vuln_shell.c, tool versions,
-# and a README into the output directory (.security-report by default).
+# It also writes the src/vuln_shell.c patch between the two refs, tool
+# versions, and a README into the output directory (.security-report by
+# default).
 #
 # Usage: scripts/collect_security_data.sh [REF...] [-o OUTDIR]
 set -eu
@@ -28,7 +29,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "${#REFS[@]}" -eq 0 ]; then
-    REFS=(v0-vulnerable HEAD)
+    REFS=(v1-vulnerable HEAD)
 fi
 
 if [ -d "$REPO_ROOT/.venv/bin" ]; then
@@ -188,7 +189,7 @@ SARIF), findings.tsv (extracted table of every result), valgrind.log
 (raw run with --error-exitcode=7), asan.log (AddressSanitizer/UBSan
 run), versions.txt, commit.txt.
 
-Read docs/security-report-v0-vulnerable.md for the analysis.
+Read docs/security-report-v1-vulnerable.md for the analysis.
 Reproduce with: scripts/collect_security_data.sh
 EOF
 
