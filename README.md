@@ -4,7 +4,7 @@
 
 A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline that finds them and blocks commits until they are fixed.
 
-The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v2-vulnerable` tag and exits 0 on `main`.
+The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v2-vulnerable` tag and exits 0 at `v2-patched`, which is the same feature under the same test payload with the four defects fixed.
 
 ## Pipeline at a glance
 
@@ -45,6 +45,14 @@ Jump to: [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sa
 
 This is not a secure shell implementation, and it is not trying to be one. The defects are there so the analysis engines have something to find, and so the before/after is a real diff rather than a claim.
 
+Three tags carry the history, and each one is frozen:
+
+| Tag | State |
+|---|---|
+| `v1-vulnerable` | Two defects, both caught by the static engines |
+| `v2-vulnerable` | Four defects, two of them invisible to every static engine |
+| `v2-patched` | Same feature, same payload, four defects fixed, gate clean |
+
 ### Why the vulnerable state is a tag and not a branch
 
 A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. A tag is frozen instead, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." The annotated tag is published, and published tags do not get rewritten.
@@ -66,7 +74,7 @@ Both static engines run twice: unfiltered first, writing the SARIF report, then 
 
 `scripts/optional/cvss_triage.py` scores SARIF findings against a hand-built CVSS v3.1 table sourced from MITRE's CWE pages and the FIRST spec. It works, and it is not wired into `make scan`. Filling that table took about two dozen judgment calls I was able to defend but not prove, which is the wrong shape of work for a gate that has to answer pass or fail. It stays out of the repo, since "evaluated CVSS contextualisation" is a true thing to say and "shipped a risk-scoring pipeline" is not.
 
-### The delta: `v2-vulnerable` → `main`
+### Which engine sees which defect
 
 All four defects survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang, which is the precondition for reaching a scanner at all. `-Wformat-security` only fires on a non-literal format with no arguments; GCC can't see the length of a `const char*` parameter at compile time; and it can't follow an uninitialised read through a file-scope pointer, though it does reject the same defect written inside one function.
 
@@ -77,9 +85,29 @@ All four defects survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on 
 | Leaked `strdup` on ring overwrite | silent | silent | **definitely lost** | **LeakSanitizer** |
 | Branch on uninitialised heap | silent | silent | **conditional jump** | **silent, exit 0** |
 
-**23 findings (Flawfinder 10, Semgrep 13), four at `error`, all four on the first two defects.** Nothing at any severity points at the leak or the uninitialised read; the static engines are blind to both and Valgrind is what blocks them. The last row is the one that earns the pipeline: ASan cannot detect uninitialised reads at all, since that is MemorySanitizer and it cannot be combined with `-fsanitize=address`. Full writeup: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
+Nothing at any severity points at the leak or the uninitialised read; the static engines are blind to both and Valgrind is what blocks them. The last row is the one that earns the pipeline: ASan cannot detect uninitialised reads at all, since that is MemorySanitizer and it cannot be combined with `-fsanitize=address`.
 
-At `main`, none of the four exist. **8 findings (Flawfinder 3, Semgrep 5), none at `error`, `make scan` exits 0.** The survivors are not bugs: Flawfinder flags `strlen` and any non-literal `printf` format without checking whether the surrounding code is correct — `getline` guarantees NUL termination, so `strlen` is safe on it — and Semgrep's five are four `interesting-api-calls` audit hits (`strtok_r`, `fork`, `execvp`) plus one false positive on `free(input_buffer)`, `raptor-mismatched-memory-management`, because `getline` is not in the rule's list of tracked allocators. Written up in `.semgrep/rules/NOTICE.md`.
+### The delta: `v2-vulnerable` → `v2-patched`
+
+`v2-patched` is the same feature and the same payload with the four defects fixed, so the diff is a remediation rather than a deletion: 15 insertions and 9 deletions in one file. `strcpy` becomes a bounded `snprintf`, the format string becomes a literal, the ring `free()`s a slot before overwriting it and drains itself at exit, and the occupancy flags are `calloc`ed.
+
+| Signal | `v2-vulnerable` | `v2-patched` |
+|---|---|---|
+| `make scan` | **1, blocked** | **0, clean** |
+| Flawfinder block probe | 1 | 0 |
+| Semgrep block probe | 1 | 0 |
+| Valgrind | 7 | 0 |
+| AddressSanitizer | 1 | 0 |
+| Findings, total | 23 | 23 |
+| Findings at `error` | **4** | **0** |
+
+Every one of the five verdicts flips, and the finding total does not move. That last pair is the point: 23 findings before and 23 after, with the four `error`-severity ones gone. Counting findings measures nothing, because the count is dominated by `note`-level hits on fixed-size arrays and audit-candidate API calls that were never defects. The gate reads severity, which is why the fixed tag is clean while still reporting 23 things.
+
+The vulnerable commit needed `git commit --no-verify` to exist at all. The patched one passed the same pre-commit hook unforced.
+
+Full writeup: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
+
+At `main` the recall feature does not exist at all, which is a third state rather than a remediation. **8 findings (Flawfinder 3, Semgrep 5), none at `error`, `make scan` exits 0.** The survivors are not bugs: Flawfinder flags `strlen` and any non-literal `printf` format without checking whether the surrounding code is correct — `getline` guarantees NUL termination, so `strlen` is safe on it — and Semgrep's five are four `interesting-api-calls` audit hits (`strtok_r`, `fork`, `execvp`) plus one false positive on `free(input_buffer)`, `raptor-mismatched-memory-management`, because `getline` is not in the rule's list of tracked allocators. Written up in `.semgrep/rules/NOTICE.md`.
 
 `explicit_bzero(input_buffer, buffer_size)` sits in `main()`, wiping the `getline` buffer before `free()`. It was there before the remediation and it stayed, because it is justified on its own: that buffer holds whatever was typed at the prompt, which in a shell includes anything passed as a command argument. It takes `getline`'s `n`, the allocated size, rather than `strlen`, since `strlen` stops at the first null and would leave the rest of the buffer intact.
 
@@ -201,7 +229,8 @@ c-secure-build/
 The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v2-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
 
 ```bash
-scripts/collect_security_data.sh      # v2-vulnerable vs HEAD
+scripts/collect_security_data.sh                            # v2-vulnerable vs HEAD
+scripts/collect_security_data.sh v2-vulnerable v2-patched   # the remediation delta
 ```
 
 The write-up: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md) — the four defects, which engine sees each one, why the leak had to be made *definitely lost* rather than merely still reachable before LeakSanitizer would report it, and why testing an `int` flag rather than dereferencing an uninitialised pointer is what keeps the finding a finding instead of a SEGV.
