@@ -70,15 +70,33 @@ jobs:
           ./scripts/scan.sh || code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
+          # A *-vulnerable tag is a fixture whose whole assertion is that the
+          # gate blocks it. Everywhere else the assertion is a clean tree.
+          # Without this split, a gate that stopped detecting the planted
+          # defects would exit 0 at the tag and the job would go green.
+          case "$GITHUB_REF_NAME" in
+            *-vulnerable) echo "expected=1" >> "$GITHUB_OUTPUT" ;;
+            *)            echo "expected=0" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Summarise the gate
         if: always()
+        env:
+          CODE: ${{ steps.gate.outputs.code }}
+          EXPECTED: ${{ steps.gate.outputs.expected }}
         run: |
           {
-            case "${{ steps.gate.outputs.code }}" in
-              0) echo "Gate passed." ;;
-              1) echo "Gate blocked. See the Security tab for the SARIF findings; the scan step log carries the Valgrind output." ;;
-              *) echo "Gate could not run: a scanner is missing. Nothing was checked." ;;
-            esac
+            if [ "${CODE:-2}" -gt 1 ]; then
+              echo "Gate could not run: a scanner is missing. Nothing was checked."
+            elif [ "$CODE" != "$EXPECTED" ] && [ "$EXPECTED" = "1" ]; then
+              echo "Gate passed at \`$GITHUB_REF_NAME\`, which is a vulnerable fixture it was supposed to block. The planted defects are no longer detected."
+            elif [ "$CODE" != "$EXPECTED" ]; then
+              echo "Gate blocked. See the Security tab for the SARIF findings; the scan step log carries the Valgrind output."
+            elif [ "$EXPECTED" = "1" ]; then
+              echo "Gate blocked \`$GITHUB_REF_NAME\`, as this fixture requires. See the Security tab for the SARIF findings; the scan step log carries the Valgrind output."
+            else
+              echo "Gate passed."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Flawfinder SARIF
@@ -96,14 +114,25 @@ jobs:
           category: semgrep
 
       - name: Enforce the gate
-        if: steps.gate.outputs.code != '0'
+        if: always()
+        env:
+          CODE: ${{ steps.gate.outputs.code }}
+          EXPECTED: ${{ steps.gate.outputs.expected }}
         run: |
-          if [ "${{ steps.gate.outputs.code }}" = "1" ]; then
-            echo "::error::Security gate blocked. See the Security tab."
-          else
-            echo "::error::Security gate could not run (exit ${{ steps.gate.outputs.code }}). A scanner is missing, so nothing was scanned."
+          # Missing output means the gate step never reported: treat as broken.
+          if [ "${CODE:-2}" -gt 1 ]; then
+            echo "::error::Security gate could not run (exit ${CODE:-2}). A scanner is missing, so nothing was scanned."
+            exit 1
           fi
-          exit 1
+
+          if [ "$CODE" != "$EXPECTED" ]; then
+            if [ "$EXPECTED" = "1" ]; then
+              echo "::error::The gate passed at $GITHUB_REF_NAME, a vulnerable fixture it was supposed to block. The planted defects are no longer detected."
+            else
+              echo "::error::Security gate blocked. See the Security tab."
+            fi
+            exit 1
+          fi
 
   secrets:
     name: secret scan
