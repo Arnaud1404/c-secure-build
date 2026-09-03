@@ -14,11 +14,12 @@ static char* history[HISTORY_SLOTS];
 static int* slot_used;
 static int history_count;
 
-/* Allocates the occupancy flags for the recall table. */
+/* Allocates the occupancy flags for the recall table. calloc, not malloc:
+ * recall_slot reads flags for slots this session has not written yet. */
 static void history_init(void) {
-  slot_used = malloc(HISTORY_SLOTS * sizeof(int));
+  slot_used = calloc(HISTORY_SLOTS, sizeof(int));
   if (slot_used == NULL) {
-    perror("malloc failed");
+    perror("calloc failed");
     exit(EXIT_FAILURE);
   }
 }
@@ -26,18 +27,20 @@ static void history_init(void) {
 /* Keeps the most recent command line for the `history` builtin. Must run
  * before parse_input, which tokenizes the buffer in place. */
 static void record_history(const char* input) {
-  strcpy(last_command, input);
+  snprintf(last_command, sizeof(last_command), "%s", input);
 
   int slot = history_count % HISTORY_SLOTS;
+  /* The ring wraps, so this slot may already own a string. */
+  free(history[slot]);
   history[slot] = strdup(input);
   slot_used[slot] = 1;
   history_count++;
 }
 
-/* Prints the recorded command through a caller-supplied format. */
-static void show_history(const char* format) {
-  printf(format, last_command);
-  putchar('\n');
+/* Prints the recorded command. The format stays a literal here: the
+ * builtin's argument is attacker-controlled and is not one. */
+static void show_history(void) {
+  printf("%s\n", last_command);
 }
 
 /* Prints one slot of the recall table. */
@@ -130,7 +133,7 @@ int main(void) {
     }
 
     if (parsed_args[0] != NULL && strcmp(parsed_args[0], "history") == 0) {
-      show_history(parsed_args[1] == NULL ? "%s" : parsed_args[1]);
+      show_history();
       continue;
     }
 
@@ -146,6 +149,9 @@ int main(void) {
     explicit_bzero(input_buffer, buffer_size);
   }
   free(input_buffer);
+  for (int i = 0; i < HISTORY_SLOTS; i++) {
+    free(history[i]);
+  }
   free(slot_used);
 
   return 0;
