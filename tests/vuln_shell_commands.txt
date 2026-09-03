@@ -1,3 +1,7 @@
-ls -la
 pwd
+recall 3
+history %p
+recall 0
+recall 0
+recall 0
 exit
