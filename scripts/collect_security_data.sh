@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerates the full before/after security dataset for this repository.
 #
-# For every git ref given on the command line (default: v1-vulnerable and
+# For every git ref given on the command line (default: v2-vulnerable and
 # HEAD) this script checks the ref out into a temporary worktree and runs:
 #
 #   - scripts/scan.sh            (flawfinder + semgrep reports, Valgrind gate)
@@ -29,7 +29,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "${#REFS[@]}" -eq 0 ]; then
-    REFS=(v1-vulnerable HEAD)
+    REFS=(v2-vulnerable HEAD)
 fi
 
 if [ -d "$REPO_ROOT/.venv/bin" ]; then
@@ -189,7 +189,7 @@ SARIF), findings.tsv (extracted table of every result), valgrind.log
 (raw run with --error-exitcode=7), asan.log (AddressSanitizer/UBSan
 run), versions.txt, commit.txt.
 
-Read docs/security-report-v1-vulnerable.md for the analysis.
+Read docs/security-report-v2-vulnerable.md for the analysis.
 Reproduce with: scripts/collect_security_data.sh
 EOF
 
