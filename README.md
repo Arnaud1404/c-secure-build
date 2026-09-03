@@ -4,7 +4,7 @@
 
 A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline that finds them and blocks commits until they are fixed.
 
-The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v1-vulnerable` tag and exits 0 on `main`.
+The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v2-vulnerable` tag and exits 0 on `main`.
 
 ## Pipeline at a glance
 
@@ -41,7 +41,7 @@ Jump to: [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sa
 
 ## The vulnerable target
 
-`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. The `v1-vulnerable` tag freezes it in a state the gate refuses: a `strcpy` of the input line into a 32-byte global (CWE-120/787), and a `history` builtin that passes its argument straight to `printf` as the format (CWE-134). Both are at `error` severity for Flawfinder and Semgrep, and both are caught by Valgrind and AddressSanitizer too — the write-up is in [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md).
+`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. The `v2-vulnerable` tag freezes it in a state the gate refuses, with four defects chosen so that no single engine finds all of them: a `strcpy` of the input line into a 32-byte global (CWE-120/787), a `history` builtin that passes its argument straight to `printf` as the format (CWE-134), a recall ring that overwrites `strdup`ed entries without freeing them (CWE-401), and occupancy flags allocated with `malloc` where `calloc` was meant, so the `recall` builtin branches on an indeterminate value (CWE-457). The first two block on Flawfinder and Semgrep; the last two are invisible to both and block on Valgrind. The write-up is in [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
 
 This is not a secure shell implementation, and it is not trying to be one. The defects are there so the analysis engines have something to find, and so the before/after is a real diff rather than a claim.
 
@@ -66,20 +66,20 @@ Both static engines run twice: unfiltered first, writing the SARIF report, then 
 
 `scripts/optional/cvss_triage.py` scores SARIF findings against a hand-built CVSS v3.1 table sourced from MITRE's CWE pages and the FIRST spec. It works, and it is not wired into `make scan`. Filling that table took about two dozen judgment calls I was able to defend but not prove, which is the wrong shape of work for a gate that has to answer pass or fail. It stays out of the repo, since "evaluated CVSS contextualisation" is a true thing to say and "shipped a risk-scoring pipeline" is not.
 
-### The delta: `v1-vulnerable` → `main`
+### The delta: `v2-vulnerable` → `main`
 
-`record_history()` `strcpy`s the raw input line into a 32-byte global, and `show_history()` hands the `history` builtin's argument straight to `printf` as the format string. Both survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang — `-Wformat-security` only fires on a non-literal format with no arguments, and GCC can't see the length of a `const char*` parameter at compile time — so the compiler hands both to the scanners instead of catching them first.
+All four defects survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang, which is the precondition for reaching a scanner at all. `-Wformat-security` only fires on a non-literal format with no arguments; GCC can't see the length of a `const char*` parameter at compile time; and it can't follow an uninitialised read through a file-scope pointer, though it does reject the same defect written inside one function.
 
-| Engine | Rule | Line | Level | Verdict |
+| Defect | Flawfinder | Semgrep | Valgrind | ASan |
 |---|---|---|---|---|
-| Flawfinder | `FF1001` `strcpy` [MS-banned] | 16 | **error** | strcpy overflow |
-| Semgrep | `raptor-insecure-api-strcpy-strcat` | 16 | **error** | strcpy overflow |
-| Flawfinder | `FF1016` printf format string | 21 | **error** | format string |
-| Semgrep | `raptor-format-string-bugs` | 21 | **error** | format string |
+| `strcpy` into a 32-byte global | **error** | **error** | fortify abort | preempted |
+| Externally-controlled format | **error** | **error** | silent | silent |
+| Leaked `strdup` on ring overwrite | silent | silent | **definitely lost** | **LeakSanitizer** |
+| Branch on uninitialised heap | silent | silent | **conditional jump** | **silent, exit 0** |
 
-**14 findings (Flawfinder 6, Semgrep 8), four at `error`. Flawfinder and Semgrep both block, and so do Valgrind and AddressSanitizer.** Full defect writeup, including why Valgrind blocks through its `_FORTIFY_SOURCE` replacement of `strcpy` rather than through Memcheck, and why AddressSanitizer never gets a chance to report because glibc's fortify check aborts first: [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md).
+**23 findings (Flawfinder 10, Semgrep 13), four at `error`, all four on the first two defects.** Nothing at any severity points at the leak or the uninitialised read; the static engines are blind to both and Valgrind is what blocks them. The last row is the one that earns the pipeline: ASan cannot detect uninitialised reads at all, since that is MemorySanitizer and it cannot be combined with `-fsanitize=address`. Full writeup: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
 
-At `main`, neither function exists. **8 findings (Flawfinder 3, Semgrep 5), none at `error`, `make scan` exits 0.** The two surviving rows are not bugs: Flawfinder flags `strlen` and any non-literal `printf` format without checking whether the surrounding code is correct — `getline` guarantees NUL termination, so `strlen` is safe on it — and Semgrep's five are four `interesting-api-calls` audit hits (`strtok_r`, `fork`, `execvp`) plus one false positive on `free(input_buffer)`, `raptor-mismatched-memory-management`, because `getline` is not in the rule's list of tracked allocators. Written up in `.semgrep/rules/NOTICE.md`.
+At `main`, none of the four exist. **8 findings (Flawfinder 3, Semgrep 5), none at `error`, `make scan` exits 0.** The survivors are not bugs: Flawfinder flags `strlen` and any non-literal `printf` format without checking whether the surrounding code is correct — `getline` guarantees NUL termination, so `strlen` is safe on it — and Semgrep's five are four `interesting-api-calls` audit hits (`strtok_r`, `fork`, `execvp`) plus one false positive on `free(input_buffer)`, `raptor-mismatched-memory-management`, because `getline` is not in the rule's list of tracked allocators. Written up in `.semgrep/rules/NOTICE.md`.
 
 `explicit_bzero(input_buffer, buffer_size)` sits in `main()`, wiping the `getline` buffer before `free()`. It was there before the remediation and it stayed, because it is justified on its own: that buffer holds whatever was typed at the prompt, which in a shell includes anything passed as a command argument. It takes `getline`'s `n`, the allocated size, rather than `strlen`, since `strlen` stops at the first null and would leave the rest of the buffer intact.
 
@@ -198,13 +198,15 @@ c-secure-build/
 
 ## Security data & release
 
-The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v1-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
+The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v2-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
 
 ```bash
-scripts/collect_security_data.sh      # v1-vulnerable vs HEAD
+scripts/collect_security_data.sh      # v2-vulnerable vs HEAD
 ```
 
-The write-up: [`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md) — the two defects that block on Flawfinder and Semgrep at `error`, why `-Wformat-security` and `-Wstringop-overflow` let both through, and why `_FORTIFY_SOURCE=3` preempted AddressSanitizer.
+The write-up: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md) — the four defects, which engine sees each one, why the leak had to be made *definitely lost* rather than merely still reachable before LeakSanitizer would report it, and why testing an `int` flag rather than dereferencing an uninitialised pointer is what keeps the finding a finding instead of a SEGV.
+
+[`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md) is kept as published: the two static defects on their own, why `-Wformat-security` and `-Wstringop-overflow` let both through, and why `_FORTIFY_SOURCE=3` preempted AddressSanitizer.
 
 CI also runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
 

@@ -29,13 +29,22 @@ This ruleset has no rule for:
 * A missing `free()` on an allocation path (memory leak). The pack's
   closest rules are the inverse: `raptor-double-free` (freeing twice) and
   `raptor-incorrect-use-of-free` (freeing non-heap memory).
+* A read of an uninitialised heap value. No rule in the pack models
+  allocator initialisation, so `malloc` where `calloc` was meant reads as
+  an ordinary allocation.
 
 The `fork`/`execvp` gap is still present in `vuln_shell.c` and is not
-caught by Semgrep as configured here. The missing-`free()` gap was
-briefly closed by a local rule written for this project's planted leak;
-the rule was removed on purpose — a rule written for the bug proves the
-rule, not the pipeline. The leak is now caught by the Valgrind gate in
-`scripts/scan.sh` instead.
+caught by Semgrep as configured here.
+
+The other two gaps are measured, not assumed. `v2-vulnerable` plants a
+leak (`C3`) and an uninitialised read (`C4`), and neither Semgrep nor
+Flawfinder reports either one at any severity; the Valgrind gate in
+`scripts/scan.sh` blocks on both. See
+`docs/security-report-v2-vulnerable.md`.
+
+The missing-`free()` gap was briefly closed by a local rule written for
+this project's planted leak; the rule was removed on purpose. A rule
+written for the bug proves the rule, not the pipeline.
 
 ## Known false positive
 
