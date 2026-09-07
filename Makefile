@@ -24,8 +24,8 @@ SEC_DIR = .security
 HOOK_DIR = .githooks
 
 TARGET = $(BIN_DIR)/c-secure-shell
-SRC = $(SRC_DIR)/vuln_shell.c
-OBJ = $(OBJ_DIR)/vuln_shell.o
+SRC = $(SRC_DIR)/hardened_shell.c
+OBJ = $(OBJ_DIR)/hardened_shell.o
 
 .PHONY: all clean scan hooks
 
