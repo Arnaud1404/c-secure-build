@@ -2,9 +2,11 @@
 
 [![CI](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml)
 
-A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline that finds them and blocks commits until they are fixed.
+A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline that finds them and blocks the commit until you fix them.
 
-The shell itself is not the point. The point is the gate around it, and the fact that you get to watch it flip: `make scan` exits 1 at the `v2-vulnerable` tag and exits 0 at `v2-patched`, which is the same feature under the same test payload with the four defects fixed.
+- **The shell is not the point.** The gate around it is.
+- **You can watch it flip:** `make scan` exits 1 at `v2-vulnerable`, 0 at `v2-patched`.
+- **Same feature, same test input, four defects fixed.** The difference is the defects, nothing else.
 
 ## Pipeline at a glance
 
@@ -26,6 +28,7 @@ flowchart TD
         G --> H2["build clang"]
         G --> H3["security gate: make scan"]
         G --> H4["secret scan: gitleaks"]
+        G --> H5["fixture mirrors"]
         H3 --> S1["SARIF: flawfinder / semgrep"]
         H4 --> S2["SARIF: gitleaks"]
         S1 --> T["Security tab (3 categories)"]
@@ -37,29 +40,123 @@ flowchart TD
     P -->|yes| N["merge allowed"]
 ```
 
-Jump to: [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sarif-gate) · [CI](#the-ci-pipeline) · [quick start](#quick-start)
+Jump to: [quick start](#quick-start) · [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sarif-gate) · [CI](#the-ci-pipeline)
+
+## Quick start
+
+### Prerequisites
+
+```bash
+# Ubuntu/Debian: gcc pulls libasan8 and libubsan1 with it
+sudo apt install gcc make valgrind
+
+# RHEL/Fedora
+sudo dnf install gcc make valgrind libasan libubsan
+```
+
+| Tool | What you need |
+|---|---|
+| GCC or Clang, GNU Make | C17 support |
+| `libasan` + `libubsan` | The default build passes `-fsanitize=address,undefined`, so both runtimes must be present. `make ASAN=0 all` builds without them |
+| `valgrind` | Comes from your package manager, per the block above |
+| `flawfinder` | **2.0.20 or newer.** Older versions have no `--sarif`, so install it from `requirements.txt` and not from your package manager |
+| `semgrep` | Pinned in `requirements.txt` |
+| `gitleaks` | CI only, pinned and checksummed there. A local `make scan` does not need it |
+
+`requirements.txt` pins both Python scanners, and CI installs the same file. A system-wide `pip install` is refused under PEP 668, so use a venv in the repo:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+`scripts/scan.sh` puts `.venv/bin` on `PATH` when that directory exists, so nothing needs activating.
+
+### Build and scan
+
+```bash
+make                  # hardened build with ASan/UBSan
+make ASAN=0 all       # without sanitizers
+make VALGRIND=1       # for Valgrind
+
+./bin/c-secure-shell  # run it
+
+make scan             # static reports + the Valgrind gate
+```
+
+| Command | Sanitizers | Use it for |
+|---|---|---|
+| `make` | ASan + UBSan | Day to day, and what the ASan half of the gate runs |
+| `make ASAN=0 all` | off | A plain hardened binary |
+| `make VALGRIND=1` | off (forces `ASAN=0`) | Valgrind, which cannot run against an ASan binary |
+
+- Switching between those three needs `make clean` first. Make compares timestamps and cannot notice that a variable changed, so stale objects give you a binary built with the previous flags.
+- `make scan` cleans and rebuilds on its own for that reason.
+
+`scripts/scan.sh` exit codes:
+
+| Exit | Meaning |
+|---|---|
+| 0 | Nothing blocked |
+| 1 | A finding blocked |
+| 2 | Nothing was scanned: a missing scanner, an engine that wrote no report, or a block pass that exited with something other than "findings" or "no findings" |
+
+- The hook and CI call the script directly, not through Make, to keep exit 2 distinct. Make reports every recipe failure as its own exit 2, which would turn a broken toolchain into what looks like a security finding.
+- Exit 2 is what this repo got wrong once: both report passes used to end in `|| true`, so a semgrep that crashed wrote no SARIF and the gate still printed `scan clean`. An engine that cannot run has not cleared the code, it has only failed to look at it.
+
+### The pre-commit hook
+
+Git does not clone hooks, so install it once after cloning:
+
+```bash
+make hooks
+```
+
+- That points `core.hooksPath` at `.githooks/`.
+- The hook runs the build, then `make scan`, which rebuilds under Valgrind, so the memory check lives inside the gate.
+- It is there for fast feedback. CI is the authority, since anyone is free to pass `--no-verify`.
+
+### Watch the gate flip
+
+```bash
+git checkout v2-vulnerable && make scan   # exits 1, blocked
+git checkout v2-patched   && make scan    # exits 0, clean
+```
+
+Each tag carries its own copy of the gate, so this is the verdict that tag got at the time. CI asserts the same thing on every push: a `*-vulnerable` tag that passes the gate fails the build.
 
 ## The vulnerable target
 
-`src/vuln_shell.c` is a small REPL that reads a line, splits it on whitespace, forks, and calls `execvp`. Roughly ninety lines. The `v2-vulnerable` tag freezes it in a state the gate refuses, with four defects chosen so that no single engine finds all of them: a `strcpy` of the input line into a 32-byte global (CWE-120/787), a `history` builtin that passes its argument straight to `printf` as the format (CWE-134), a recall ring that overwrites `strdup`ed entries without freeing them (CWE-401), and occupancy flags allocated with `malloc` where `calloc` was meant, so the `recall` builtin branches on an indeterminate value (CWE-457). The first two block on Flawfinder and Semgrep; the last two are invisible to both and block on Valgrind. The write-up is in [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
+A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plus a `history`/`recall` feature that carries the planted defects. Two versions, both readable at `HEAD`:
 
-This is not a secure shell implementation, and it is not trying to be one. The defects are there so the analysis engines have something to find, and so the before/after is a real diff rather than a claim.
+| Version | File | Lines | Built | Scanned |
+|---|---|---|---|---|
+| vulnerable | [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak) | 152 | no | **no** |
+| hardened | [`src/hardened_shell.c`](src/hardened_shell.c) | 184 | **yes** | **yes** |
 
-Three tags carry the history, and each one is frozen:
+Why the vulnerable version sits in the tree at all:
+
+- It mirrors `v2-vulnerable:src/vuln_shell.c` byte for byte, so the line numbers in `docs/` resolve without checking a tag out.
+- The `fixture mirrors` CI job asserts it still matches the tag.
+- **The `.bak` suffix is what keeps it out of the gate:** neither static engine parses that extension as C.
+- Rename it to `.c` and `make scan` blocks immediately.
+
+The hardened version repairs all four defects ([C1 to C4](#which-engine-sees-which-defect)) **in place**, in 15 insertions and 9 deletions, with the feature intact. This is not a secure shell implementation and is not trying to be one; the defects exist so the engines have something real to find.
+
+### Two frozen tags
 
 | Tag | State |
 |---|---|
-| `v1-vulnerable` | Two defects, both caught by the static engines |
 | `v2-vulnerable` | Four defects, two of them invisible to every static engine |
-| `v2-patched` | Same feature, same payload, four defects fixed, gate clean |
+| `v2-patched` | Same feature, same test input, four defects fixed, gate clean. `main` started here and is free to refactor on top |
 
-### Why the vulnerable state is a tag and not a branch
+A tag rather than a branch, because:
 
-A branch would be a second head to maintain: every change to files the two states share — CI, the Makefile, the rule pack — would have to land twice, and one accidental merge from the vulnerable side would replant the bug in `main`. A tag is frozen instead, and nothing about it ever needs rebasing or merging. Checking the tag out gives you that moment's own gate with it, which is historically true; the dataset generator overlays today's gate onto yesterday's code, so the before/after is always "current gate, old code." The annotated tag is published, and published tags do not get rewritten.
+- A branch is a second head to maintain. Every change to shared files (CI, the Makefile, the rule pack) lands twice.
+- One accidental merge from the vulnerable side replants the bug in `main`.
+- A tag never needs rebasing, and checking it out brings that moment's own gate with it.
 
 ## The multi-engine SARIF gate
-
-Four engines, two static and two dynamic:
 
 | Engine | Kind | What it does here |
 |---|---|---|
@@ -68,78 +165,73 @@ Four engines, two static and two dynamic:
 | **Valgrind** | Dynamic | Leak and error detection at runtime |
 | **AddressSanitizer** | Dynamic | Instrumented builds, on by default |
 
-Both static engines emit SARIF themselves, so no wrapper translates one format into another.
+Both static engines emit SARIF themselves, so nothing translates between formats. Each one runs twice:
 
-Both static engines run twice: unfiltered first, writing the SARIF report, then at the tool's own error threshold, and that second exit code is part of what decides whether the commit is blocked. Valgrind runs once — it has no report to keep, only a verdict — and its exit code is part of the same decision. Splitting the static pair means the report keeps every low-severity finding whether or not anything blocks. `make scan` is the entry point; reports land in `.security/*.sarif` and `.security/valgrind.log`.
-
-`scripts/optional/cvss_triage.py` scores SARIF findings against a hand-built CVSS v3.1 table sourced from MITRE's CWE pages and the FIRST spec. It works, and it is not wired into `make scan`. Filling that table took about two dozen judgment calls I was able to defend but not prove, which is the wrong shape of work for a gate that has to answer pass or fail. It stays out of the repo, since "evaluated CVSS contextualisation" is a true thing to say and "shipped a risk-scoring pipeline" is not.
+- **Pass 1, unfiltered.** Writes `.security/*.sarif` and keeps every finding, down to `note` level.
+- **Pass 2, at the tool's own error threshold.** This exit code is the one that blocks the commit.
+- Splitting them means a clean gate still ships a full report.
+- Valgrind runs once. It has no report to keep, only a verdict.
+- `make scan` is the entry point. Reports land in `.security/`.
 
 ### Which engine sees which defect
 
-All four defects survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang, which is the precondition for reaching a scanner at all. `-Wformat-security` only fires on a non-literal format with no arguments; GCC can't see the length of a `const char*` parameter at compile time; and it can't follow an uninitialised read through a file-scope pointer, though it does reject the same defect written inside one function.
+All four defects survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang, which is the precondition for reaching a scanner at all.
 
-| Defect | Flawfinder | Semgrep | Valgrind | ASan |
-|---|---|---|---|---|
-| `strcpy` into a 32-byte global | **error** | **error** | fortify abort | preempted |
-| Externally-controlled format | **error** | **error** | silent | silent |
-| Leaked `strdup` on ring overwrite | silent | silent | **definitely lost** | **LeakSanitizer** |
-| Branch on uninitialised heap | silent | silent | **conditional jump** | **silent, exit 0** |
+| | Defect | CWE | Flawfinder | Semgrep | Valgrind | ASan |
+|---|---|---|---|---|---|---|
+| **C1** | `strcpy` of the input line into a 32-byte global | 120/787 | **error** | **error** | not triggered | not triggered |
+| **C2** | `history` passes its argument to `printf` as the format | 134 | **error** | **error** | silent | silent |
+| **C3** | Recall ring overwrites `strdup`ed entries without freeing | 401 | silent | silent | **definitely lost** | **LeakSanitizer** |
+| **C4** | Occupancy flags from `malloc` where `calloc` was meant | 457 | silent | silent | **conditional jump** | **silent, exit 0** |
 
-Nothing at any severity points at the leak or the uninitialised read; the static engines are blind to both and Valgrind is what blocks them. The last row is the one that earns the pipeline: ASan cannot detect uninitialised reads at all, since that is MemorySanitizer and it cannot be combined with `-fsanitize=address`.
+- C1 and C2 block on both static engines.
+- C3 and C4 are invisible to both and block on Valgrind.
+- C4 is why the pipeline runs Valgrind as well as ASan: ASan does not detect uninitialised reads at all, since that is MemorySanitizer, which cannot combine with `-fsanitize=address`.
+- C1 says "not triggered" because the test input never types a line long enough to overflow the buffer. If it did, glibc's hardening check would kill the process right there, before C3 and C4 happen, and one defect would hide the other three. The report measures that case separately.
 
 ### The delta: `v2-vulnerable` → `v2-patched`
-
-`v2-patched` is the same feature and the same payload with the four defects fixed, so the diff is a remediation rather than a deletion: 15 insertions and 9 deletions in one file. `strcpy` becomes a bounded `snprintf`, the format string becomes a literal, the ring `free()`s a slot before overwriting it and drains itself at exit, and the occupancy flags are `calloc`ed.
 
 | Signal | `v2-vulnerable` | `v2-patched` |
 |---|---|---|
 | `make scan` | **1, blocked** | **0, clean** |
-| Flawfinder block probe | 1 | 0 |
-| Semgrep block probe | 1 | 0 |
+| Flawfinder block pass | 1 | 0 |
+| Semgrep block pass | 1 | 0 |
 | Valgrind | 7 | 0 |
 | AddressSanitizer | 1 | 0 |
 | Findings, total | 23 | 23 |
 | Findings at `error` | **4** | **0** |
 
-Every one of the five verdicts flips, and the finding total does not move. That last pair is the point: 23 findings before and 23 after, with the four `error`-severity ones gone. Counting findings measures nothing, because the count is dominated by `note`-level hits on fixed-size arrays and audit-candidate API calls that were never defects. The gate reads severity, which is why the fixed tag is clean while still reporting 23 things.
-
-The vulnerable commit needed `git commit --no-verify` to exist at all. The patched one passed the same pre-commit hook unforced.
+- Every verdict flips. The finding total does not move.
+- `note`-level hits on fixed-size arrays and audit-candidate API calls dominate the count, and none of them were ever defects.
+- The gate reads severity, not count, so the fixed tag comes back clean while still reporting 23 things.
+- The vulnerable commit needed `git commit --no-verify` to exist. The patched one passed the same hook unforced.
 
 Full writeup: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
-
-At `main` the recall feature does not exist at all, which is a third state rather than a remediation. **8 findings (Flawfinder 3, Semgrep 5), none at `error`, `make scan` exits 0.** The survivors are not bugs: Flawfinder flags `strlen` and any non-literal `printf` format without checking whether the surrounding code is correct — `getline` guarantees NUL termination, so `strlen` is safe on it — and Semgrep's five are four `interesting-api-calls` audit hits (`strtok_r`, `fork`, `execvp`) plus one false positive on `free(input_buffer)`, `raptor-mismatched-memory-management`, because `getline` is not in the rule's list of tracked allocators. Written up in `.semgrep/rules/NOTICE.md`.
-
-`explicit_bzero(input_buffer, buffer_size)` sits in `main()`, wiping the `getline` buffer before `free()`. It was there before the remediation and it stayed, because it is justified on its own: that buffer holds whatever was typed at the prompt, which in a shell includes anything passed as a command argument. It takes `getline`'s `n`, the allocated size, rather than `strlen`, since `strlen` stops at the first null and would leave the rest of the buffer intact.
 
 ## The CI pipeline
 
 The hook and CI run the same gates. The difference is that `git commit --no-verify` skips a hook, and nothing skips a required status check.
 
-| Job | What it does |
-|---|---|
-| `build (gcc)` / `build (clang)` | Hardened build under both compilers |
-| `security gate` | `make scan`, then one SARIF upload per engine |
-| `secret scan` | `gitleaks` over the full history, uploaded as its own category |
+| Job | What it does | In the required list below |
+|---|---|---|
+| `build (gcc)` / `build (clang)` | Hardened build under both compilers | yes |
+| `security gate` | `make scan`, then one SARIF upload per engine | yes |
+| `secret scan` | `gitleaks` over the full history, uploaded as its own category | yes |
+| `fixture mirrors` | Asserts `src/vuln_shell.c.bak` still matches `v2-vulnerable` | **no** |
 
-Three categories reach the Security tab: `flawfinder`, `semgrep`, `gitleaks`. They stay separate. I did write a SARIF merger for this, then deleted it in Phase 7 after measuring what it produced: one cross-tool merge across thirteen findings. Code Scanning takes multiple uploads per commit keyed on `category`, and GitHub's own CodeQL CLI docs describe merging beforehand as a backwards-compatibility path, so the categories carry the same information without the code. The merger is still in the history if anyone wants to see what it looked like.
+Mirror drift therefore turns the job red without blocking the merge. Add it to the list if you want the docs' line numbers guarded the same way the gate is.
+
+Three categories reach the Security tab, and they stay separate: `flawfinder`, `semgrep`, `gitleaks`. Code Scanning accepts multiple uploads per commit keyed on `category`, and GitHub's own CodeQL CLI docs describe merging beforehand as a backwards-compatibility path, so I deleted the SARIF merger I had written for this after measuring what it produced: one cross-tool merge across thirteen findings.
 
 Three things in the workflow that are easy to get wrong:
 
-The gate's exit code is captured into a step output instead of failing its own step. Uploads run under `if: always()`, and a separate step at the end fails the job. If `make scan` failed its step directly, every upload would be skipped and a blocked build would show nothing at all in the Security tab, which recouples the report to the gate. That coupling is exactly what the two-pass split in `scripts/scan.sh` exists to avoid.
-
-Third-party actions are pinned by commit SHA, not tag. Tags move, and whoever owns `actions/checkout@v4` repoints it at will. `gitleaks` is pinned to a version and checked against a published SHA-256 before it runs, rather than curled into a shell.
-
-Scanner versions come from `requirements.txt`, which is also what CI installs, so a local checkout and CI cannot drift apart.
-
-One inconsistency: `valgrind` comes from the runner's apt repository and is not pinned, unlike the scanners and gitleaks. Pinning it means either an apt pin that breaks when the runner image moves, or building from source in CI. Neither seemed worth it, but it is a gap in an otherwise pinned toolchain.
+- **The gate does not fail its own step.** The job captures the exit code into a step output, uploads run under `if: always()`, and a separate step at the end fails the job. Had `make scan` failed its step directly, CI would skip every upload, and a blocked build would show nothing in the Security tab.
+- **Third-party actions are pinned by commit SHA, not tag.** Whoever owns `actions/checkout@v4` repoints it at will. `gitleaks` is pinned to a version and checked against a published SHA-256 before it runs. Scanner versions come from `requirements.txt`, which CI installs, so a local checkout cannot drift from CI.
+- **`valgrind` is the one unpinned tool.** It comes from the runner's apt repository. Pinning it means either an apt pin that breaks when the runner image moves, or building from source in CI. Neither seemed worth it, and it stays a gap in an otherwise pinned toolchain.
 
 ### Branch protection
 
-A workflow file cannot require its own checks. It defines them; someone has to go turn them on. After CI has run once on `main`, require these four:
-
-`build (gcc)`, `build (clang)`, `security gate`, `secret scan`
-
-Through **Settings → Branches → Add branch ruleset**, or:
+A workflow file cannot require its own checks. After CI has run once on `main`, require `build (gcc)`, `build (clang)`, `security gate` and `secret scan` through **Settings → Branches → Add branch ruleset**, or:
 
 ```bash
 gh api -X PUT repos/Arnaud1404/c-secure-build/branches/main/protection \
@@ -156,67 +248,31 @@ gh api -X PUT repos/Arnaud1404/c-secure-build/branches/main/protection \
 JSON
 ```
 
-`enforce_admins: true` is the part that matters. Without it the rule does not apply to the repo owner, and "the pipeline blocks merges" quietly means "the pipeline blocks merges for everyone except me."
-
-## Quick start
-
-### Prerequisites
-
-- GCC or Clang with C17 support, GNU Make
-- `flawfinder` **2.0.20 or newer** (older versions have no `--sarif`), `semgrep`, `valgrind`
-- `valgrind` is a distribution package: `sudo apt install valgrind` on Debian, `sudo dnf install valgrind` on Fedora
-- `gitleaks` runs in CI only, pinned and checksummed there. A local `make scan` does not need it
-
-Both Python scanners are pinned in `requirements.txt`, which is what CI installs too. Debian and Fedora both refuse a system-wide `pip install` under PEP 668, so use a venv in the repo and run the identical command CI runs:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-```
-
-`scripts/scan.sh` puts `.venv/bin` on `PATH` when that directory exists, so nothing needs activating. Distribution packages will not do here: Debian 13 ships flawfinder 2.0.19, which predates `--sarif`.
-
-### Build and scan
-
-```bash
-make                  # hardened build with ASan/UBSan
-make ASAN=0 all       # without sanitizers
-make VALGRIND=1       # for Valgrind
-
-./bin/c-secure-shell  # run it
-
-make scan             # static reports + the Valgrind gate
-```
-
-Make compares timestamps and has no way of noticing that a variable changed, so switching between those three modes needs a `make clean` first. Without it the objects still look up to date and you get back a binary built with the previous flags. `make scan` cleans and rebuilds on its own, because running Valgrind against an ASan binary does not work.
-
-`scripts/scan.sh` exits 0 when nothing blocks, 1 when a finding does, and 2 when nothing was scanned at all — a missing scanner, an engine that failed to write a report, or a block pass that exited with something other than "findings" or "no findings". The hook and CI call the script directly to preserve that last distinction: Make reports every recipe failure as its own exit 2, which would turn a broken toolchain into what looks like a security finding. `make scan` is the convenience wrapper for running the gate by hand.
-
-Exit 2 is the case that is easy to get wrong, and this repo got it wrong once: both report passes used to end in `|| true`, so a semgrep that crashed wrote no SARIF and the gate still printed `scan clean`. An engine that cannot run has not cleared the code, it has only failed to look at it. `scripts/collect_security_data.sh` now refuses to write a dataset if that happens, rather than shipping one silently missing an engine's report.
-
-### The pre-commit hook
-
-Git does not clone hooks, so install it once after cloning:
-
-```bash
-make hooks
-```
-
-That points `core.hooksPath` at `.githooks/`. The hook runs the build and `make scan`, in that order; the scan itself rebuilds under Valgrind, so the memory check lives inside the gate. It is there for fast feedback. CI is the authority, since anyone is free to pass `--no-verify`.
+`enforce_admins: true` is the part that matters. Without it the rule does not apply to the repo owner, and "the pipeline blocks merges" quietly means "for everyone except me."
 
 ## Hardening flags
 
-`-Wall -Wextra -Werror -pedantic`, `-D_FORTIFY_SOURCE=3`, `-fPIE` / `-pie`, `-fstack-protector-strong`, `-Wformat-security`, and full RELRO (`-Wl,-z,relro,-z,now`).
+| Flag | Why |
+|---|---|
+| `-Wall -Wextra -Werror -pedantic` | Every warning on, warnings are build failures, strict ISO C17 |
+| `-D_FORTIFY_SOURCE=3` | Runtime bounds checks on libc calls whose sizes the compiler cannot prove |
+| `-fPIE` / `-pie` | Position-independent executable, so ASLR applies to the binary itself |
+| `-fstack-protector-strong` | Stack canaries on functions with local arrays or address-taken locals |
+| `-Wformat-security` | Warns on a non-literal format string with no arguments |
+| `-Wl,-z,relro,-z,now` | Full RELRO: the GOT is resolved at load time and mapped read-only |
+
+`explicit_bzero(input_buffer, buffer_size)` wipes the `getline` buffer before `free()`, because in a shell that buffer holds anything typed at the prompt, including command arguments. It takes `getline`'s `n` rather than `strlen`, which would stop at the first null and leave the rest intact.
 
 ## Project structure
 
 ```
 c-secure-build/
-├── src/vuln_shell.c            # the target
-├── tests/vuln_shell_commands.txt  # the payload the dynamic engines run
+├── src/hardened_shell.c        # the target: built, scanned, gated (started as v2-patched)
+├── src/vuln_shell.c.bak        # mirror of v2-vulnerable; not built, not scanned
+├── tests/vuln_shell_commands.txt  # the test input the dynamic engines run
 ├── scripts/scan.sh             # static reports + the Valgrind gate; blocks on either
 ├── scripts/collect_security_data.sh  # rebuilds the before/after dataset
-├── docs/                       # the security report
+├── docs/                       # the security reports
 ├── .semgrep/rules/             # vendored pack + NOTICE
 ├── .githooks/pre-commit        # installed by `make hooks`
 ├── .github/workflows/ci.yml    # build matrix, gate, SARIF upload, secret scan
@@ -226,22 +282,29 @@ c-secure-build/
 
 ## Security data & release
 
-The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any refs (default `v2-vulnerable` and `HEAD`): raw SARIF from the two static engines, per-engine gate exit codes, Valgrind and AddressSanitizer logs, an extracted findings table, tool versions, and the `src/vuln_shell.c` patch. It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
+The before/after evidence is a dataset, not a claim in this README. `scripts/collect_security_data.sh` rebuilds it for any two refs:
+
+- Raw SARIF from both static engines
+- Per-engine gate exit codes
+- Valgrind and AddressSanitizer logs
+- An extracted findings table and the tool versions that produced it
+- The patch between the two refs
+
+It refuses to write a partial dataset, so a run that finishes is one every number can be read off.
 
 ```bash
 scripts/collect_security_data.sh                            # v2-vulnerable vs HEAD
-scripts/collect_security_data.sh v2-vulnerable v2-patched   # the remediation delta
+scripts/collect_security_data.sh v2-vulnerable v2-patched   # the reproducible delta
 ```
 
-The write-up: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md) — the four defects, which engine sees each one, why the leak had to be made *definitely lost* rather than merely still reachable before LeakSanitizer would report it, and why testing an `int` flag rather than dereferencing an uninitialised pointer is what keeps the finding a finding instead of a SEGV.
-
-[`docs/security-report-v1-vulnerable.md`](docs/security-report-v1-vulnerable.md) is kept as published: the two static defects on their own, why `-Wformat-security` and `-Wstringop-overflow` let both through, and why `_FORTIFY_SOURCE=3` preempted AddressSanitizer.
-
-CI also runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
+- Use the two frozen tags for the comparison that reproduces, since `HEAD` moves.
+- CI runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
+- [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md) is the write-up: the four defects, which engine sees each one, and what the fix changed.
 
 ## Regulatory context
 
-Finding vulnerabilities automatically and blocking releases on them is the kind of thing the EU Cyber Resilience Act and NIS2 expect of a development process, and this pipeline does that much. I have not mapped it against specific articles, and there is no SBOM or build provenance here, so nothing in this repo should be read as a compliance claim.
+- Finding vulnerabilities automatically and blocking releases on them is the kind of thing the EU Cyber Resilience Act and NIS2 expect of a development process, and this pipeline does that much.
+- I have not mapped it against specific articles, and there is no SBOM or build provenance here, so nothing here should be read as a compliance claim.
 
 ## References
 
