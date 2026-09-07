@@ -10,7 +10,7 @@
 #   - an AddressSanitizer/UBSan build plus one run against the payload
 #   - a python3 extraction of every SARIF result into findings.tsv
 #
-# It also writes the src/vuln_shell.c patch between the two refs, tool
+# It also writes the shell's patch between the two refs, tool
 # versions, and a README into the output directory (.security-report by
 # default).
 #
@@ -54,8 +54,8 @@ for REF in "${REFS[@]}"; do
 
     # The gate script and rule pack under test are the current ones; the
     # code under test is the ref's. Without this, every ref would be
-    # scanned with whatever scan.sh and rules were frozen in its own
-    # commit — including a rule that was since deleted on purpose.
+    # scanned with whatever scan.sh and rules its own commit froze,
+    # including a rule that was since deleted on purpose.
     cp "$REPO_ROOT/scripts/scan.sh" "$WORKTREE/scripts/scan.sh"
     rm -rf "$WORKTREE/.semgrep/rules"
     cp -R "$REPO_ROOT/.semgrep/rules" "$WORKTREE/.semgrep/rules"
@@ -171,12 +171,15 @@ for run in data.get("runs", []):
         rm -rf "$WORKTREE"
 done
 
-# With exactly two refs, ship the patch between them (the default pair
-# keeps the historical filename).
+# With exactly two refs, ship the patch between them. The shell is
+# src/vuln_shell.c at the tags and src/hardened_shell.c on main, so both paths
+# have to be in the pathspec: a single-path diff across the rename reports a
+# whole-file deletion instead of the patch.
 if [ "${#REFS[@]}" -eq 2 ]; then
     A_SLUG="$(printf '%s' "${REFS[0]}" | tr '/' '-')"
     B_SLUG="$(printf '%s' "${REFS[1]}" | tr '/' '-')"
-    git -C "$REPO_ROOT" --no-pager diff "${REFS[0]}" "${REFS[1]}" -- src/vuln_shell.c \
+    git -C "$REPO_ROOT" --no-pager diff -M "${REFS[0]}" "${REFS[1]}" \
+        -- src/vuln_shell.c src/hardened_shell.c \
         > "$DATA_ROOT/diff-${A_SLUG}-to-${B_SLUG}.patch"
 fi
 
