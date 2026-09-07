@@ -33,7 +33,7 @@ This ruleset has no rule for:
   allocator initialisation, so `malloc` where `calloc` was meant reads as
   an ordinary allocation.
 
-The `fork`/`execvp` gap is still present in `vuln_shell.c` and is not
+The `fork`/`execvp` gap is still present in `hardened_shell.c` and is not
 caught by Semgrep as configured here.
 
 The other two gaps are measured, not assumed. `v2-vulnerable` plants a
@@ -49,7 +49,7 @@ written for the bug proves the rule, not the pipeline.
 ## Known false positive
 
 `raptor-mismatched-memory-management` flags `free(input_buffer)` in
-`src/vuln_shell.c`. `input_buffer` is allocated by `getline()`, which is
+`src/hardened_shell.c`. `input_buffer` is allocated by `getline()`, which is
 malloc-compatible, but the rule's tracked-allocator list does not include
 `getline`, so it cannot trace the origin and flags the `free()` as
 unpaired. The rule's own metadata acknowledges it "might generate many
