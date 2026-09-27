@@ -3,7 +3,8 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-if [ -d .venv/bin ]; then
+# A host .venv mounted into the image cannot run there.
+if [ -d .venv/bin ] && [ "${SCAN_TOOLCHAIN:-}" != image ]; then
     PATH="$PWD/.venv/bin:$PATH"
     export PATH
 fi
@@ -15,31 +16,32 @@ for tool in flawfinder semgrep valgrind; do
     fi
 done
 
-# An engine that could not run has not cleared the code, it has only failed
-# to look at it. That is exit 2, never a clean scan.
+# Exit 2: an engine failed to run, so nothing was checked.
 broken() {
     echo "ERROR: $1" >&2
     echo "Nothing was scanned. This is not a finding." >&2
     exit 2
 }
 
+# Exit 1 from a block pass is findings; anything else is the engine failing.
+verdict() {
+    case "$2" in
+        0) ;;
+        1) blocked=1 ;;
+        *) broken "the $1 block pass failed with exit $2" ;;
+    esac
+}
+
 blocked=0
 
-# The dynamic gates first: they rebuild the tree, and make clean removes
-# .security with it, so the SARIF reports have to be written after these.
-#
-# ASan and Valgrind need separate builds, since Valgrind cannot run an ASan
-# binary. They are not redundant: ASan does not see uninitialised reads
-# (C4), and Valgrind does not see most stack and global overflows.
-#
-# UBSan is in the same build and reports without failing by default, so
-# halt_on_error is what lets undefined behaviour block. Any non-zero exit
-# blocks, for the same reason as the Valgrind run below: a sanitizer report
-# and a crashing target are not distinguishable by exit code alone.
+# Dynamic passes first: make clean also removes .security.
+# Valgrind cannot run an ASan binary, so each gets its own build. A report
+# and a crash look the same by exit code, so any non-zero exit blocks.
 make clean > /dev/null 2>&1
 make > /dev/null 2>&1
 
 asan_tmp="$(mktemp)"
+# UBSan only warns unless told to halt.
 ASAN_OPTIONS=detect_leaks=1 \
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
     ./bin/c-secure-shell < tests/vuln_shell_commands.txt \
@@ -48,13 +50,6 @@ UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
 make clean > /dev/null 2>&1
 make VALGRIND=1 > /dev/null 2>&1
 
-# The block policy lives here on purpose, not in a test script a historical
-# commit could freeze with the opposite polarity.
-#
-# Any non-zero exit blocks. Valgrind returns its own --error-exitcode for
-# findings but passes the client's status through otherwise, so a crashing
-# target and a leaking target are not distinguishable by exit code alone.
-# Blocking on both is the conservative reading.
 valgrind_tmp="$(mktemp)"
 valgrind --leak-check=full --show-leak-kinds=all \
     --errors-for-leak-kinds=all --error-exitcode=1 --quiet \
@@ -66,9 +61,7 @@ rm -f .security/*.sarif
 mv "$valgrind_tmp" .security/valgrind.log
 mv "$asan_tmp" .security/asan.log
 
-# Report pass: unfiltered, so the SARIF keeps every low-severity finding
-# whether or not anything blocks. Neither engine exits non-zero on findings
-# without being asked to, so a non-zero exit here is the engine failing.
+# Report pass, unfiltered. These exit 0 on findings, so non-zero is a failure.
 flawfinder --sarif --quiet src/ > .security/flawfinder.sarif \
     || broken "flawfinder could not write its SARIF report"
 [ -s .security/flawfinder.sarif ] \
@@ -80,24 +73,15 @@ semgrep --config .semgrep/rules/ --sarif \
 [ -s .security/semgrep.sarif ] \
     || broken "semgrep wrote an empty SARIF report"
 
-# Block pass, at each tool's own error threshold. Exit 1 is "findings at or
-# above it"; anything else is the engine failing, which is not a verdict.
+# Block pass, at each tool's own error threshold.
 probe=0
 flawfinder --quiet --error-level=4 src/ > /dev/null || probe=$?
-case "$probe" in
-    0) ;;
-    1) blocked=1 ;;
-    *) broken "the flawfinder block pass failed with exit $probe" ;;
-esac
+verdict flawfinder "$probe"
 
 probe=0
 semgrep --config .semgrep/rules/ --severity=ERROR --error --quiet src/ \
     > /dev/null || probe=$?
-case "$probe" in
-    0) ;;
-    1) blocked=1 ;;
-    *) broken "the semgrep block pass failed with exit $probe" ;;
-esac
+verdict semgrep "$probe"
 
 if [ "$blocked" -ne 0 ]; then
     echo "BLOCKED: see .security/*.sarif, .security/asan.log and .security/valgrind.log"

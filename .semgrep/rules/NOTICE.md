@@ -13,11 +13,9 @@ itself is vendored, unmodified, from:
   because those rules are marginal/high-false-positive by design, which
   does not fit this project's blocking pre-commit gate.
 
-Each rule's `metadata.author` field already carries individual attribution;
-this file exists to satisfy the MIT license's notice requirement at the
-directory level and to record where the snapshot came from and which
-version it is pinned to, consistent with how this repo pins `semgrep`
-itself in `requirements.txt`.
+Each rule's `metadata.author` field carries its own attribution. This file
+covers the MIT notice for the directory and records which upstream version
+the snapshot is.
 
 ## Known gaps
 
@@ -36,15 +34,15 @@ This ruleset has no rule for:
 The `fork`/`execvp` gap is still present in `hardened_shell.c` and is not
 caught by Semgrep as configured here.
 
-The other two gaps are measured, not assumed. `v2-vulnerable` plants a
+The other two gaps were measured. `v2-vulnerable` plants a
 leak (`C3`) and an uninitialised read (`C4`), and neither Semgrep nor
 Flawfinder reports either one at any severity; the Valgrind gate in
 `scripts/scan.sh` blocks on both, and its ASan pass on `C3`. See
 `docs/security-report-v2-vulnerable.md`.
 
 The missing-`free()` gap was briefly closed by a local rule written for
-this project's planted leak; the rule was removed on purpose. A rule
-written for the bug proves the rule, not the pipeline.
+this project's planted leak, then removed. A rule written to match the
+planted bug only shows that it matches it.
 
 ## Known false positive
 
