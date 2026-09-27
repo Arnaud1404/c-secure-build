@@ -46,6 +46,13 @@ ASAN_OPTIONS=detect_leaks=1 \
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
     ./bin/c-secure-shell < tests/vuln_shell_commands.txt \
     > /dev/null 2> "$asan_tmp" || blocked=1
+# collect_security_data.sh runs this gate on tags that predate the test.
+if [ -e tests/recall_test.sh ]; then
+    ASAN_OPTIONS=detect_leaks=1 \
+    UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+        ./tests/recall_test.sh ./bin/c-secure-shell \
+        > /dev/null 2>> "$asan_tmp" || blocked=1
+fi
 
 make clean > /dev/null 2>&1
 make VALGRIND=1 > /dev/null 2>&1
@@ -67,7 +74,7 @@ flawfinder --sarif --quiet src/ > .security/flawfinder.sarif \
 [ -s .security/flawfinder.sarif ] \
     || broken "flawfinder wrote an empty SARIF report"
 
-semgrep --config .semgrep/rules/ --sarif \
+semgrep --config .semgrep/rules/ --config .semgrep/local/ --sarif \
     --output .security/semgrep.sarif --quiet src/ \
     || broken "semgrep could not write its SARIF report"
 [ -s .security/semgrep.sarif ] \
@@ -79,8 +86,8 @@ flawfinder --quiet --error-level=4 src/ > /dev/null || probe=$?
 verdict flawfinder "$probe"
 
 probe=0
-semgrep --config .semgrep/rules/ --severity=ERROR --error --quiet src/ \
-    > /dev/null || probe=$?
+semgrep --config .semgrep/rules/ --config .semgrep/local/ \
+    --severity=ERROR --error --quiet src/ > /dev/null || probe=$?
 verdict semgrep "$probe"
 
 if [ "$blocked" -ne 0 ]; then

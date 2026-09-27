@@ -1,3 +1,6 @@
+#include <errno.h>
+#include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +52,21 @@ static void recall_slot(int slot) {
   } else {
     printf("%s\n", history[slot]);
   }
+}
+
+/* strtol, not atoi: atoi has undefined behavior when the value does not fit
+ * in an int, and returns 0 for text that is not a number at all. */
+static bool parse_int(const char* text, int* out) {
+  char* end;
+  errno = 0;
+  long value = strtol(text, &end, 10);
+
+  if (end == text || *end != '\0' || errno == ERANGE || value < INT_MIN ||
+      value > INT_MAX)
+    return false;
+
+  *out = (int)value;
+  return true;
 }
 
 /* Tokenizes input in place. */
@@ -103,7 +121,11 @@ static builtin_result_t dispatch_builtin(char** args) {
   }
 
   if (strcmp(args[0], "recall") == 0) {
-    recall_slot(args[1] == NULL ? 0 : atoi(args[1]));
+    int slot = 0;
+    if (args[1] != NULL && !parse_int(args[1], &slot))
+      printf("recall: slot must be a number\n");
+    else
+      recall_slot(slot);
     return BUILTIN_CONTINUE;
   }
 
