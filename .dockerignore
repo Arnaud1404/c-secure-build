@@ -1,0 +1,3 @@
+# The image needs requirements.txt and nothing else; the tree is mounted.
+*
+!requirements.txt

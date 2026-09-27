@@ -27,7 +27,16 @@ TARGET = $(BIN_DIR)/c-secure-shell
 SRC = $(SRC_DIR)/hardened_shell.c
 OBJ = $(OBJ_DIR)/hardened_shell.o
 
-.PHONY: all clean scan hooks
+# Rootless podman maps uids itself; --user would leave files it cannot own.
+CONTAINER ?= docker
+IMAGE = c-secure-build-toolchain
+ifeq ($(CONTAINER),podman)
+    RUN_AS = --userns=keep-id
+else
+    RUN_AS = --user $(shell id -u):$(shell id -g)
+endif
+
+.PHONY: all clean scan hooks image docker-scan
 
 all: $(TARGET)
 
@@ -42,6 +51,12 @@ $(OBJ_DIR) $(BIN_DIR):
 
 scan:
 	./scripts/scan.sh
+
+image:
+	$(CONTAINER) build -t $(IMAGE) .
+
+docker-scan: image
+	$(CONTAINER) run --rm $(RUN_AS) -v "$(CURDIR):/src" $(IMAGE)
 
 hooks:
 	git config core.hooksPath $(HOOK_DIR)
