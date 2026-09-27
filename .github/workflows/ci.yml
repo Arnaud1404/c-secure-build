@@ -91,9 +91,9 @@ jobs:
             elif [ "$CODE" != "$EXPECTED" ] && [ "$EXPECTED" = "1" ]; then
               echo "Gate passed at \`$GITHUB_REF_NAME\`, which is a vulnerable fixture it was supposed to block. The planted defects are no longer detected."
             elif [ "$CODE" != "$EXPECTED" ]; then
-              echo "Gate blocked. See the Security tab for the SARIF findings; the scan step log carries the Valgrind output."
+              echo "Gate blocked. See the Security tab for the SARIF findings; the scan step log carries the ASan and Valgrind output."
             elif [ "$EXPECTED" = "1" ]; then
-              echo "Gate blocked \`$GITHUB_REF_NAME\`, as this fixture requires. See the Security tab for the SARIF findings; the scan step log carries the Valgrind output."
+              echo "Gate blocked \`$GITHUB_REF_NAME\`, as this fixture requires. See the Security tab for the SARIF findings; the scan step log carries the ASan and Valgrind output."
             else
               echo "Gate passed."
             fi
