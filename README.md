@@ -17,7 +17,8 @@ flowchart TD
     C --> C1["flawfinder --sarif"]
     C --> C2["semgrep --sarif"]
     C --> C3["valgrind --error-exitcode=1"]
-    C1 & C2 & C3 --> D{"any gate fails?"}
+    C --> C4["ASan + UBSan run"]
+    C1 & C2 & C3 & C4 --> D{"any gate fails?"}
     D -->|yes| E["commit rejected"]
     D -->|no| F["commit created"]
 
@@ -81,12 +82,12 @@ make VALGRIND=1       # for Valgrind
 
 ./bin/c-secure-shell  # run it
 
-make scan             # static reports + the Valgrind gate
+make scan             # static reports + the ASan and Valgrind gates
 ```
 
 | Command | Sanitizers | Use it for |
 |---|---|---|
-| `make` | ASan + UBSan | Day to day, and what the ASan half of the gate runs |
+| `make` | ASan + UBSan | Day to day, and what the ASan pass of the gate runs |
 | `make ASAN=0 all` | off | A plain hardened binary |
 | `make VALGRIND=1` | off (forces `ASAN=0`) | Valgrind, which cannot run against an ASan binary |
 
@@ -113,7 +114,7 @@ make hooks
 ```
 
 - That points `core.hooksPath` at `.githooks/`.
-- The hook runs the build, then `make scan`, which rebuilds under Valgrind, so the memory check lives inside the gate.
+- The hook runs the build, then `make scan`, which rebuilds once with ASan and once for Valgrind, so both memory checks live inside the gate.
 - It is there for fast feedback. CI is the authority, since anyone is free to pass `--no-verify`.
 
 ### Watch the gate flip
@@ -163,14 +164,14 @@ A tag rather than a branch, because:
 | **Flawfinder** | Lexical | Matches dangerous POSIX API names against a fixed list |
 | **Semgrep** | Syntactic | 49 vendored rules from [0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT) |
 | **Valgrind** | Dynamic | Leak and error detection at runtime |
-| **AddressSanitizer** | Dynamic | Instrumented builds, on by default |
+| **AddressSanitizer** | Dynamic | Instrumented build run on the test input, with UBSan and LeakSanitizer; any report blocks |
 
 Both static engines emit SARIF themselves, so nothing translates between formats. Each one runs twice:
 
 - **Pass 1, unfiltered.** Writes `.security/*.sarif` and keeps every finding, down to `note` level.
 - **Pass 2, at the tool's own error threshold.** This exit code is the one that blocks the commit.
 - Splitting them means a clean gate still ships a full report.
-- Valgrind runs once. It has no report to keep, only a verdict.
+- Valgrind and ASan each run once, on separate builds, since Valgrind cannot run an ASan binary. They keep a log in `.security/` and have no SARIF, only a verdict.
 - `make scan` is the entry point. Reports land in `.security/`.
 
 ### Which engine sees which defect
@@ -270,7 +271,7 @@ c-secure-build/
 ├── src/hardened_shell.c        # the target: built, scanned, gated (started as v2-patched)
 ├── src/vuln_shell.c.bak        # mirror of v2-vulnerable; not built, not scanned
 ├── tests/vuln_shell_commands.txt  # the test input the dynamic engines run
-├── scripts/scan.sh             # static reports + the Valgrind gate; blocks on either
+├── scripts/scan.sh             # static reports + the ASan and Valgrind gates; blocks on any
 ├── scripts/collect_security_data.sh  # rebuilds the before/after dataset
 ├── docs/                       # the security reports
 ├── .semgrep/rules/             # vendored pack + NOTICE

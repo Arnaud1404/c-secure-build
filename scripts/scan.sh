@@ -25,8 +25,26 @@ broken() {
 
 blocked=0
 
-# The dynamic gate first: it rebuilds the tree, and make clean removes
-# .security with it, so the SARIF reports have to be written after this.
+# The dynamic gates first: they rebuild the tree, and make clean removes
+# .security with it, so the SARIF reports have to be written after these.
+#
+# ASan and Valgrind need separate builds, since Valgrind cannot run an ASan
+# binary. They are not redundant: ASan does not see uninitialised reads
+# (C4), and Valgrind does not see most stack and global overflows.
+#
+# UBSan is in the same build and reports without failing by default, so
+# halt_on_error is what lets undefined behaviour block. Any non-zero exit
+# blocks, for the same reason as the Valgrind run below: a sanitizer report
+# and a crashing target are not distinguishable by exit code alone.
+make clean > /dev/null 2>&1
+make > /dev/null 2>&1
+
+asan_tmp="$(mktemp)"
+ASAN_OPTIONS=detect_leaks=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+    ./bin/c-secure-shell < tests/vuln_shell_commands.txt \
+    > /dev/null 2> "$asan_tmp" || blocked=1
+
 make clean > /dev/null 2>&1
 make VALGRIND=1 > /dev/null 2>&1
 
@@ -46,6 +64,7 @@ valgrind --leak-check=full --show-leak-kinds=all \
 mkdir -p .security
 rm -f .security/*.sarif
 mv "$valgrind_tmp" .security/valgrind.log
+mv "$asan_tmp" .security/asan.log
 
 # Report pass: unfiltered, so the SARIF keeps every low-severity finding
 # whether or not anything blocks. Neither engine exits non-zero on findings
@@ -81,8 +100,8 @@ case "$probe" in
 esac
 
 if [ "$blocked" -ne 0 ]; then
-    echo "BLOCKED: see .security/*.sarif and .security/valgrind.log"
-    cat .security/valgrind.log
+    echo "BLOCKED: see .security/*.sarif, .security/asan.log and .security/valgrind.log"
+    cat .security/asan.log .security/valgrind.log
     exit 1
 fi
 
