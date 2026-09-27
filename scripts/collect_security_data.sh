@@ -1,20 +1,9 @@
 #!/usr/bin/env bash
-# Regenerates the full before/after security dataset for this repository.
-#
-# For every git ref given on the command line (default: v2-vulnerable and
-# HEAD) this script checks the ref out into a temporary worktree and runs:
-#
-#   - scripts/scan.sh            (flawfinder + semgrep reports, ASan and Valgrind gates)
-#   - the two static per-engine block probes scan.sh uses
-#   - a raw Valgrind run with --error-exitcode, for a readable log
-#   - an AddressSanitizer/UBSan build plus one run against the payload
-#   - a python3 extraction of every SARIF result into findings.tsv
-#
-# It also writes the shell's patch between the two refs, tool
-# versions, and a README into the output directory (.security-report by
-# default).
+# Builds the before/after dataset: gate verdicts, SARIF, sanitizer and
+# Valgrind logs for each ref, plus the patch between two refs.
 #
 # Usage: scripts/collect_security_data.sh [REF...] [-o OUTDIR]
+#        (default refs: v2-vulnerable HEAD)
 set -eu
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -52,15 +41,12 @@ for REF in "${REFS[@]}"; do
     git -C "$REPO_ROOT" --no-pager show -s --format='%H %ci %s' "$REF" \
         > "$DIR/commit.txt"
 
-    # The gate script and rule pack under test are the current ones; the
-    # code under test is the ref's. Without this, every ref would be
-    # scanned with whatever scan.sh and rules its own commit froze,
-    # including a rule that was since deleted on purpose.
+    # Today's gate and rules, the ref's code.
     cp "$REPO_ROOT/scripts/scan.sh" "$WORKTREE/scripts/scan.sh"
     rm -rf "$WORKTREE/.semgrep/rules"
     cp -R "$REPO_ROOT/.semgrep/rules" "$WORKTREE/.semgrep/rules"
 
-    echo "== $REF: static gate (scan.sh)"
+    echo "== $REF: gate (scan.sh)"
     set +e
     (cd "$WORKTREE" && ./scripts/scan.sh) \
         > "$DIR/gate.txt" 2>&1
@@ -68,9 +54,7 @@ for REF in "${REFS[@]}"; do
     set -e
     echo "scan_exit=$scan_status" >> "$DIR/gate.txt"
 
-    # 0 and 1 are verdicts on the code; anything else is the gate failing to
-    # run. Publishing a dataset built on that would ship a number nobody can
-    # read, so stop instead.
+    # Above 1 the gate did not run, so there is no number to publish.
     if [ "$scan_status" -gt 1 ]; then
         echo "ERROR: the gate could not run at $REF (exit $scan_status)." >&2
         echo "See $DIR/gate.txt. Refusing to write a partial dataset." >&2
@@ -83,8 +67,7 @@ for REF in "${REFS[@]}"; do
     (cd "$WORKTREE" && semgrep --config .semgrep/rules/ \
         --severity=ERROR --error --quiet src/ > /dev/null 2>&1)
     sg_probe=$?
-    # Exit 2 is semgrep failing to run (OOM under load, worker crash), not
-    # findings. Retry once so a flaky runner cannot masquerade as a signal.
+    # Exit 2 is semgrep crashing, not findings. Retry once.
     if [ "$sg_probe" -eq 2 ]; then
         sleep 2
         (cd "$WORKTREE" && semgrep --config .semgrep/rules/ \
@@ -123,9 +106,7 @@ data = json.load(open(sys.argv[1]))
 for run in data.get("runs", []):
     driver = run.get("tool", {}).get("driver", {})
     tool = driver.get("name", "?")
-    # Semgrep carries severity on the rule definition and omits it from the
-    # result. Without this fallback the level column is blank for a whole
-    # engine, and "none at error" becomes a claim the dataset cannot check.
+    # Semgrep puts the level on the rule, not the result.
     levels = {}
     for rule in driver.get("rules", []):
         if rule.get("id") is not None:
@@ -171,10 +152,7 @@ for run in data.get("runs", []):
         rm -rf "$WORKTREE"
 done
 
-# With exactly two refs, ship the patch between them. The shell is
-# src/vuln_shell.c at the tags and src/hardened_shell.c on main, so both paths
-# have to be in the pathspec: a single-path diff across the rename reports a
-# whole-file deletion instead of the patch.
+# Both paths, or the diff across the rename shows a deleted file.
 if [ "${#REFS[@]}" -eq 2 ]; then
     A_SLUG="$(printf '%s' "${REFS[0]}" | tr '/' '-')"
     B_SLUG="$(printf '%s' "${REFS[1]}" | tr '/' '-')"
