@@ -6,7 +6,7 @@ A POSIX shell in C with deliberate bugs planted in it, wrapped in a pipeline tha
 
 - **The shell is not the point.** The gate around it is.
 - **You can watch it flip:** `make scan` exits 1 at `v2-vulnerable`, 0 at `v2-patched`.
-- **Same feature, same test input, four defects fixed.** The difference is the defects, nothing else.
+- **Same feature, same test input, four defects fixed:** the difference is the defects, nothing else.
 
 ## Pipeline at a glance
 
@@ -64,7 +64,7 @@ sudo dnf install gcc make valgrind libasan libubsan
 | `semgrep` | Pinned in `requirements.txt` |
 | `gitleaks` | CI only, pinned and checksummed there. A local `make scan` does not need it |
 
-`requirements.txt` pins both Python scanners, and CI installs the same file. A system-wide `pip install` is refused under PEP 668, so use a venv in the repo:
+`requirements.txt` pins both Python scanners. CI installs the same file. A system-wide `pip install` is refused under PEP 668, so use a venv in the repo:
 
 ```bash
 python3 -m venv .venv
@@ -124,7 +124,7 @@ git checkout v2-vulnerable && make scan   # exits 1, blocked
 git checkout v2-patched   && make scan    # exits 0, clean
 ```
 
-Each tag carries its own copy of the gate, so this is the verdict that tag got at the time. CI asserts the same thing on every push: a `*-vulnerable` tag that passes the gate fails the build.
+Each tag carries its own copy of the gate, so this is the verdict that tag got at the time. CI asserts the same thing on every push. A `*-vulnerable` tag that passes the gate fails the build.
 
 ## The vulnerable target
 
@@ -168,7 +168,7 @@ A tag rather than a branch, because:
 
 Both static engines emit SARIF themselves, so nothing translates between formats. Each one runs twice:
 
-- **Pass 1, unfiltered.** Writes `.security/*.sarif` and keeps every finding, down to `note` level.
+- **Pass 1, unfiltered**, which writes `.security/*.sarif` and keeps every finding, down to `note` level.
 - **Pass 2, at the tool's own error threshold.** This exit code is the one that blocks the commit.
 - Splitting them means a clean gate still ships a full report.
 - Valgrind and ASan each run once, on separate builds, since Valgrind cannot run an ASan binary. They keep a log in `.security/` and have no SARIF, only a verdict.
@@ -205,7 +205,7 @@ All four defects survive `-Wall -Wextra -Werror -pedantic -Wformat-security` on 
 - Every verdict flips. The finding total does not move.
 - `note`-level hits on fixed-size arrays and audit-candidate API calls dominate the count, and none of them were ever defects.
 - The gate reads severity, not count, so the fixed tag comes back clean while still reporting 23 things.
-- The vulnerable commit needed `git commit --no-verify` to exist. The patched one passed the same hook unforced.
+- The vulnerable commit needed `git commit --no-verify` to exist, while the patched one passed the same hook unforced.
 
 Full writeup: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md).
 
@@ -226,7 +226,7 @@ Three categories reach the Security tab, and they stay separate: `flawfinder`, `
 
 Three things in the workflow that are easy to get wrong:
 
-- **The gate does not fail its own step.** The job captures the exit code into a step output, uploads run under `if: always()`, and a separate step at the end fails the job. Had `make scan` failed its step directly, CI would skip every upload, and a blocked build would show nothing in the Security tab.
+- **The gate does not fail its own step.** The job captures the exit code into a step output and uploads run under `if: always()`. A separate step at the end fails the job. Had `make scan` failed its step directly, CI would skip every upload, and a blocked build would show nothing in the Security tab.
 - **Third-party actions are pinned by commit SHA, not tag.** Whoever owns `actions/checkout@v4` repoints it at will. `gitleaks` is pinned to a version and checked against a published SHA-256 before it runs. Scanner versions come from `requirements.txt`, which CI installs, so a local checkout cannot drift from CI.
 - **`valgrind` is the one unpinned tool.** It comes from the runner's apt repository. Pinning it means either an apt pin that breaks when the runner image moves, or building from source in CI. Neither seemed worth it, and it stays a gap in an otherwise pinned toolchain.
 
@@ -249,7 +249,7 @@ gh api -X PUT repos/Arnaud1404/c-secure-build/branches/main/protection \
 JSON
 ```
 
-`enforce_admins: true` is the part that matters. Without it the rule does not apply to the repo owner, and "the pipeline blocks merges" quietly means "for everyone except me."
+`enforce_admins: true` is the part that matters. Without it the rule does not apply to the repo owner. "The pipeline blocks merges" then quietly means "for everyone except me."
 
 ## Hardening flags
 
@@ -300,7 +300,7 @@ scripts/collect_security_data.sh v2-vulnerable v2-patched   # the reproducible d
 
 - Use the two frozen tags for the comparison that reproduces, since `HEAD` moves.
 - CI runs the collector and attaches `security-data-<tag>.zip` to a GitHub release whenever a `v*` tag is pushed.
-- [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md) is the write-up: the four defects, which engine sees each one, and what the fix changed.
+- [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md) is the write-up. It covers the four defects, which engine sees each one, and what the fix changed.
 
 ## Regulatory context
 
