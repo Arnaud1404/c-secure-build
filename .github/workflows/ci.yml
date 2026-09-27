@@ -45,59 +45,28 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-
-      - name: Install the pinned scanners
-        run: pip install -r requirements.txt
-
-      - name: Install valgrind
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends valgrind
+      - name: Build the toolchain image
+        run: docker build -t c-secure-build-toolchain .
 
       - name: Record tool versions
         run: |
-          flawfinder --version
-          semgrep --version
-          valgrind --version
+          docker run --rm c-secure-build-toolchain sh -c \
+            'gcc --version | head -1; valgrind --version; flawfinder --version; semgrep --version'
 
       - name: Run the gate
         id: gate
         run: |
+          # docker's own failures (125-127) read as "could not run".
           code=0
-          ./scripts/scan.sh || code=$?
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" \
+            c-secure-build-toolchain || code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
-          # A *-vulnerable tag is a fixture whose whole assertion is that the
-          # gate blocks it. Everywhere else the assertion is a clean tree.
-          # Without this split, a gate that stopped detecting the planted
-          # defects would exit 0 at the tag and the job would go green.
+          # A *-vulnerable tag must block; passing there means detection was lost.
           case "$GITHUB_REF_NAME" in
             *-vulnerable) echo "expected=1" >> "$GITHUB_OUTPUT" ;;
             *)            echo "expected=0" >> "$GITHUB_OUTPUT" ;;
           esac
-
-      - name: Summarise the gate
-        if: always()
-        env:
-          CODE: ${{ steps.gate.outputs.code }}
-          EXPECTED: ${{ steps.gate.outputs.expected }}
-        run: |
-          {
-            if [ "${CODE:-2}" -gt 1 ]; then
-              echo "Gate could not run: a scanner is missing. Nothing was checked."
-            elif [ "$CODE" != "$EXPECTED" ] && [ "$EXPECTED" = "1" ]; then
-              echo "Gate passed at \`$GITHUB_REF_NAME\`, which is a vulnerable fixture it was supposed to block. The planted defects are no longer detected."
-            elif [ "$CODE" != "$EXPECTED" ]; then
-              echo "Gate blocked. See the Security tab for the SARIF findings; the scan step log carries the ASan and Valgrind output."
-            elif [ "$EXPECTED" = "1" ]; then
-              echo "Gate blocked \`$GITHUB_REF_NAME\`, as this fixture requires. See the Security tab for the SARIF findings; the scan step log carries the ASan and Valgrind output."
-            else
-              echo "Gate passed."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Flawfinder SARIF
         if: always()
@@ -119,19 +88,27 @@ jobs:
           CODE: ${{ steps.gate.outputs.code }}
           EXPECTED: ${{ steps.gate.outputs.expected }}
         run: |
-          # Missing output means the gate step never reported: treat as broken.
-          if [ "${CODE:-2}" -gt 1 ]; then
-            echo "::error::Security gate could not run (exit ${CODE:-2}). A scanner is missing, so nothing was scanned."
+          fail() {
+            echo "::error::$1"
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
             exit 1
+          }
+
+          # No output at all means the gate step never ran.
+          if [ "${CODE:-2}" -gt 1 ]; then
+            fail "Gate could not run (exit ${CODE:-2}). Nothing was scanned."
+          fi
+          if [ "$CODE" != "$EXPECTED" ] && [ "$EXPECTED" = 1 ]; then
+            fail "Gate passed at $GITHUB_REF_NAME, a vulnerable fixture it must block. The planted defects are no longer detected."
+          fi
+          if [ "$CODE" != "$EXPECTED" ]; then
+            fail "Gate blocked. SARIF findings are in the Security tab, ASan and Valgrind output in the gate step's log."
           fi
 
-          if [ "$CODE" != "$EXPECTED" ]; then
-            if [ "$EXPECTED" = "1" ]; then
-              echo "::error::The gate passed at $GITHUB_REF_NAME, a vulnerable fixture it was supposed to block. The planted defects are no longer detected."
-            else
-              echo "::error::Security gate blocked. See the Security tab."
-            fi
-            exit 1
+          if [ "$CODE" = 1 ]; then
+            echo "Gate blocked $GITHUB_REF_NAME, as this fixture requires." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Gate passed." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   fixtures:
@@ -144,19 +121,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      # src/vuln_shell.c.bak is a byte-for-byte mirror of the vulnerable
-      # fixture, carried in the tree so docs/ can cite line numbers that
-      # resolve at HEAD without checking the tag out. The .bak suffix is
-      # load-bearing: neither static engine parses it as C, so the planted
-      # defects never reach the gate. A mirror that drifted from its tag would
-      # silently invalidate every line number citing it, so drift is an error.
-      #
-      # src/hardened_shell.c is deliberately NOT asserted against v2-patched.
-      # It started as that tag's content, but main has to stay free to move.
+      # docs/ cites line numbers in the mirror. hardened_shell.c is free to move.
       - name: Assert the vulnerable mirror matches its tag
         run: |
-          # Not named "status": that identifier is read-only in zsh, and this
-          # block is meant to be pasteable into a local shell as well.
           rc=0
           check() {
             if git show "${1}:src/vuln_shell.c" | diff -u - "$2" > /dev/null; then
@@ -242,10 +209,7 @@ jobs:
 
       - name: Collect the security dataset
         run: |
-          # On a tag push HEAD is the tag, so "$REF HEAD" would diff the tag
-          # against itself. The comparison has to be against the branch the
-          # fix landed on. The explicit fetch avoids relying on how deeply
-          # actions/checkout happens to populate remote refs.
+          # HEAD is the tag here, so compare against main.
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           ./scripts/collect_security_data.sh "${GITHUB_REF_NAME}" origin/main
 
