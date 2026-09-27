@@ -36,7 +36,7 @@ else
     RUN_AS = --user $(shell id -u):$(shell id -g)
 endif
 
-.PHONY: all clean scan hooks image docker-scan
+.PHONY: all clean test scan hooks image docker-scan
 
 all: $(TARGET)
 
@@ -48,6 +48,15 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 
 $(OBJ_DIR) $(BIN_DIR):
 	@mkdir -p $@
+
+# Rebuilds first: make cannot see that a VALGRIND=1 binary lacks sanitizers.
+# UBSan only warns unless told to halt.
+test:
+	@$(MAKE) --no-print-directory clean > /dev/null
+	@$(MAKE) --no-print-directory ASAN=1 VALGRIND=0 all > /dev/null
+	ASAN_OPTIONS=detect_leaks=1 \
+	UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+	    ./tests/recall_test.sh $(TARGET)
 
 scan:
 	./scripts/scan.sh

@@ -43,8 +43,9 @@ for REF in "${REFS[@]}"; do
 
     # Today's gate and rules, the ref's code.
     cp "$REPO_ROOT/scripts/scan.sh" "$WORKTREE/scripts/scan.sh"
-    rm -rf "$WORKTREE/.semgrep/rules"
+    rm -rf "$WORKTREE/.semgrep/rules" "$WORKTREE/.semgrep/local"
     cp -R "$REPO_ROOT/.semgrep/rules" "$WORKTREE/.semgrep/rules"
+    cp -R "$REPO_ROOT/.semgrep/local" "$WORKTREE/.semgrep/local"
 
     echo "== $REF: gate (scan.sh)"
     set +e
@@ -65,13 +66,15 @@ for REF in "${REFS[@]}"; do
     (cd "$WORKTREE" && flawfinder --quiet --error-level=4 src/ > /dev/null 2>&1)
     ff_probe=$?
     (cd "$WORKTREE" && semgrep --config .semgrep/rules/ \
-        --severity=ERROR --error --quiet src/ > /dev/null 2>&1)
+        --config .semgrep/local/ --severity=ERROR --error --quiet src/ \
+        > /dev/null 2>&1)
     sg_probe=$?
     # Exit 2 is semgrep crashing, not findings. Retry once.
     if [ "$sg_probe" -eq 2 ]; then
         sleep 2
         (cd "$WORKTREE" && semgrep --config .semgrep/rules/ \
-            --severity=ERROR --error --quiet src/ > /dev/null 2>&1)
+            --config .semgrep/local/ --severity=ERROR --error --quiet src/ \
+            > /dev/null 2>&1)
         sg_probe=$?
     fi
     set -e

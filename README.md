@@ -78,6 +78,7 @@ make VALGRIND=1       # for Valgrind
 
 ./bin/c-secure-shell  # run it
 
+make test             # recall argument tests, under ASan/UBSan
 make scan             # static reports + the ASan and Valgrind gates
 ```
 
@@ -88,7 +89,7 @@ make scan             # static reports + the ASan and Valgrind gates
 | `make VALGRIND=1` | off (forces `ASAN=0`) | Valgrind, which cannot run against an ASan binary |
 
 - Switching between those three needs `make clean` first. Make compares timestamps and cannot notice that a variable changed, so stale objects give you a binary built with the previous flags.
-- `make scan` cleans and rebuilds on its own for that reason.
+- `make test` and `make scan` clean and rebuild on their own for that reason.
 
 `scripts/scan.sh` exit codes:
 
@@ -149,7 +150,7 @@ A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plu
 | Version | File | Lines | Built | Scanned |
 |---|---|---|---|---|
 | vulnerable | [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak) | 152 | no | no |
-| hardened | [`src/hardened_shell.c`](src/hardened_shell.c) | 168 | yes | yes |
+| hardened | [`src/hardened_shell.c`](src/hardened_shell.c) | 190 | yes | yes |
 
 The vulnerable version stays in the tree for the docs:
 
@@ -173,9 +174,9 @@ They are tags because a branch would be a second head to maintain, with every ch
 | Engine | Kind | What it does here |
 |---|---|---|
 | Flawfinder | Lexical | Matches dangerous POSIX API names against a fixed list |
-| Semgrep | Syntactic | 49 vendored rules from [0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT) |
+| Semgrep | Syntactic | 49 vendored rules from [0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT), plus this project's ban list |
 | Valgrind | Dynamic | Leak and error detection at runtime |
-| AddressSanitizer | Dynamic | Instrumented build run on the test input, with UBSan and LeakSanitizer; any report blocks |
+| AddressSanitizer | Dynamic | Instrumented build run on the test input and `tests/recall_test.sh`, with UBSan and LeakSanitizer; any report or failed test blocks |
 
 Both static engines emit SARIF themselves, so nothing translates between formats. Each one runs twice:
 
@@ -183,6 +184,18 @@ Both static engines emit SARIF themselves, so nothing translates between formats
 - Pass 2 runs at the tool's own error threshold, and its exit code is what blocks.
 
 That way a clean gate still ships a full report. Valgrind and ASan each run once, on separate builds, and leave a log in `.security/` instead of SARIF.
+
+### Banned functions
+
+The vendored pack blocks `gets`, `strcpy`, `strcat`, `sprintf`, `vsprintf`, the `scanf` family and `alloca` at `ERROR`, but only reports some other unsafe calls. [`.semgrep/local/banned-apis.yaml`](.semgrep/local/banned-apis.yaml) raises those to `ERROR`, so the gate blocks them:
+
+| Rule | Functions | Why | Use instead |
+|---|---|---|---|
+| `banned-ato` | `atoi`, `atol`, `atoll`, `atof` | Undefined behavior when the value does not fit (C17 7.22.1p1), and 0 for text that is not a number | `strtol`/`strtoll`/`strtod`, checking `errno`, `endptr` and the range |
+| `banned-strtok` | `strtok` | Hidden static state, not reentrant | `strtok_r` |
+| `banned-temp-name` | `tmpnam`, `tempnam`, `mktemp` | Returns a name another process can claim first | `mkstemp` |
+
+The rules live outside `.semgrep/rules/` so that directory stays unmodified upstream code. `semgrep --test .semgrep/local/` checks them against `banned-apis.c`. `collect_security_data.sh` applies today's rules to older refs, so `v2-patched`, which still calls `atoi`, now blocks. The delta table below records the gate as it stood at that tag.
 
 ### Which engine sees which defect
 
@@ -279,10 +292,12 @@ c-secure-build/
 ├── src/hardened_shell.c        # the target: built, scanned, gated (started as v2-patched)
 ├── src/vuln_shell.c.bak        # mirror of v2-vulnerable; not built, not scanned
 ├── tests/vuln_shell_commands.txt  # the test input the dynamic engines run
+├── tests/recall_test.sh        # recall argument parsing, run by make test and the gate
 ├── scripts/scan.sh             # the gate: static, ASan and Valgrind passes
 ├── scripts/collect_security_data.sh  # rebuilds the before/after dataset
 ├── docs/                       # the security reports
 ├── .semgrep/rules/             # vendored pack + NOTICE
+├── .semgrep/local/             # this project's ban list, with its rule tests
 ├── .githooks/pre-commit        # installed by `make hooks`
 ├── .github/workflows/ci.yml    # build matrix, gate, SARIF upload, secret scan
 ├── Makefile                    # build, scan, hooks, image, docker-scan

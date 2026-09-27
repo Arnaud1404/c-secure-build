@@ -1,0 +1,54 @@
+# This project's ban list, at ERROR so the gate blocks on it. The vendored
+# pack in ../rules already blocks gets, strcpy, strcat, sprintf, vsprintf,
+# the scanf family and alloca; these are the unsafe calls it only reports.
+rules:
+  - id: banned-ato
+    metadata:
+      category: security
+      cwe:
+        - "CWE-190: Integer Overflow or Wraparound"
+      references:
+        - https://wiki.sei.cmu.edu/confluence/display/c/ERR34-C.+Detect+errors+when+converting+a+string+to+a+number
+    message: >-
+      $FUNC() is banned. It has undefined behavior when the value does not
+      fit in the result type (C17 7.22.1p1), and it returns 0 for text that
+      is not a number. Use strtol, strtoll or strtod: set errno to 0 first,
+      then check endptr and ERANGE.
+    severity: ERROR
+    languages:
+      - c
+    patterns:
+      - pattern: $FUNC(...)
+      - metavariable-regex:
+          metavariable: $FUNC
+          regex: ^(atoi|atol|atoll|atof)$
+
+  - id: banned-strtok
+    metadata:
+      category: security
+      cwe:
+        - "CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization"
+    message: >-
+      strtok() is banned. It keeps its position in hidden static state, so
+      it is not reentrant. Use strtok_r with a local save pointer.
+    severity: ERROR
+    languages:
+      - c
+    pattern: strtok(...)
+
+  - id: banned-temp-name
+    metadata:
+      category: security
+      cwe:
+        - "CWE-377: Insecure Temporary File"
+    message: >-
+      $FUNC() is banned. It returns a name, not an open file, so another
+      process can create that path first. Use mkstemp.
+    severity: ERROR
+    languages:
+      - c
+    patterns:
+      - pattern: $FUNC(...)
+      - metavariable-regex:
+          metavariable: $FUNC
+          regex: ^(tmpnam|tempnam|mktemp)$
