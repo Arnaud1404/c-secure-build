@@ -39,7 +39,7 @@ caught by Semgrep as configured here.
 The other two gaps are measured, not assumed. `v2-vulnerable` plants a
 leak (`C3`) and an uninitialised read (`C4`), and neither Semgrep nor
 Flawfinder reports either one at any severity; the Valgrind gate in
-`scripts/scan.sh` blocks on both. See
+`scripts/scan.sh` blocks on both, and its ASan pass on `C3`. See
 `docs/security-report-v2-vulnerable.md`.
 
 The missing-`free()` gap was briefly closed by a local rule written for

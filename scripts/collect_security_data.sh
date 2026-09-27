@@ -4,7 +4,7 @@
 # For every git ref given on the command line (default: v2-vulnerable and
 # HEAD) this script checks the ref out into a temporary worktree and runs:
 #
-#   - scripts/scan.sh            (flawfinder + semgrep reports, Valgrind gate)
+#   - scripts/scan.sh            (flawfinder + semgrep reports, ASan and Valgrind gates)
 #   - the two static per-engine block probes scan.sh uses
 #   - a raw Valgrind run with --error-exitcode, for a readable log
 #   - an AddressSanitizer/UBSan build plus one run against the payload

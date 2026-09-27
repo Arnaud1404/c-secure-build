@@ -1,6 +1,6 @@
 # Security report: `v2-vulnerable` vs `v2-patched`
 
-Generated locally against glibc 2.41, with flawfinder 2.0.20, semgrep 1.173.0 and valgrind 3.24.0, via `scripts/collect_security_data.sh v2-vulnerable v2-patched`. Both refs are frozen tags, so every number below is reproducible rather than measured against a moving branch.
+Generated locally against glibc 2.41, with flawfinder 2.0.20, semgrep 1.173.0 and valgrind 3.24.0, via `scripts/collect_security_data.sh v2-vulnerable v2-patched`. Both refs are frozen tags, so every number below is reproducible rather than measured against a moving branch. A rerun on 27 September 2026 gave the same numbers with glibc 2.43 and valgrind 3.27.1. The log excerpts are from the first run.
 
 Every `src/vuln_shell.c:N` cited below resolves against [`src/vuln_shell.c.bak`](../src/vuln_shell.c.bak), a byte-for-byte mirror of `v2-vulnerable:src/vuln_shell.c` that CI asserts still matches the tag. The `.bak` suffix keeps it out of the gate, since neither static engine parses that extension as C. The patched version is [`src/hardened_shell.c`](../src/hardened_shell.c), which `main` builds.
 
@@ -10,7 +10,7 @@ An earlier fixture planted two defects, and both static engines caught both of t
 
 `v2-vulnerable` keeps the two static defects and adds two more that neither static engine can see, so every engine now has at least one defect only it, or only its half of the pipeline, reports.
 
-| Ref | Commit | Static gate | Flawfinder block pass | Semgrep block pass | Valgrind | ASan run |
+| Ref | Commit | Gate (`scan.sh`) | Flawfinder block pass | Semgrep block pass | Valgrind | ASan run |
 |---|---|---|---|---|---|---|
 | `v2-vulnerable` | `319ddf6` | **BLOCKED, exit 1** | **exit 1, blocks** | **exit 1, blocks** | **blocks** (exit 7) | **leak, exit 1** |
 | `v2-patched` | `40b8ce7` | **scan clean, exit 0** | exit 0 | exit 0 | clean, exit 0 | clean, exit 0 |
@@ -46,7 +46,7 @@ static void record_history(const char* input) {
 }
 ```
 
-The main loop calls `record_history` at line 123 with the raw `getline` buffer, before anything splits it. Any typed line longer than 31 characters writes past the end of a 32-byte global.
+The main loop calls `record_history` at line 123 with the raw `getline` buffer, before anything splits it, so any typed line longer than 31 characters writes past the end of a 32-byte global.
 
 ### C2: externally-controlled format string, CWE-134 (`src/vuln_shell.c:39`)
 
@@ -91,14 +91,14 @@ if (!slot_used[slot] || history[slot] == NULL)     /* line 50 */
 
 The occupancy flags come from `malloc` rather than `calloc`, so every slot the session has not written yet holds whatever was already in that memory. `recall 3` after two commands reads one of them.
 
-**The code tests the flag before the pointer on purpose.** An earlier version made the *pointer* table the uninitialised allocation, and `recall_slot()` dereferenced whatever it found. Valgrind reads that as a clean uninitialised-value report, but under ASan the slot holds the `0xbe` malloc fill pattern:
+**The code tests the flag before the pointer on purpose.** An earlier version made the *pointer* table the uninitialised allocation, and `recall_slot()` dereferenced whatever it found. Valgrind reads that as a clean uninitialised-value report. Under ASan, though, the slot holds the `0xbe` malloc fill pattern:
 
 ```
 ==56253==ERROR: AddressSanitizer: SEGV on unknown address (pc ... bp 0xbebebebebebebebe ...)
     #5 in recall_slot src/vuln_shell.c:52
 ```
 
-That killed the run before C1, C2 and C3 were reached, trading a precise finding for a crash. Testing an `int` flag keeps the read genuinely uninitialised while leaving the pointer table (a `static` array, so zero-initialised) safe to consult.
+That killed the run before C1, C2 and C3 were reached, trading a precise finding for a crash. Testing an `int` flag keeps the read genuinely uninitialised. The pointer table stays safe to consult, since it is a `static` array and so zero-initialised.
 
 ### Why the compiler catches none of them
 
@@ -126,7 +126,7 @@ Both compilers build this file cleanly under `-Wall -Wextra -Werror -pedantic -W
 | Semgrep | `raptor-mismatched-memory-management` | 148, 149 | note | False positives on `getline`/`malloc` buffers. Written up in `.semgrep/rules/NOTICE.md`. |
 | Flawfinder | `FF1013`, `FF1016`, `FF1022`, `FF1047` | 12, 46, 51, 53, 106, 112, 120, 138 | note | Fixed-size arrays, constant formats, `strlen` over-read, `atoi`. |
 
-**Nothing at any severity points at C3 or C4.** Line 32 draws a warning about the unchecked `strdup` return, a different bug that shares a line. Line 50 draws nothing at all. That is the measurement the tag exists to produce.
+**Nothing at any severity points at C3 or C4.** Line 32 draws a warning about the unchecked `strdup` return, a different bug that shares a line. Line 50, the branch C4 is about, draws nothing at all, and that is the measurement the tag exists to produce.
 
 ## What the dynamic engines did
 
@@ -176,7 +176,7 @@ Typing the 200-character line that overflows `last_command` kills the process on
 
 Exit 7, and the rest of the run never happens: no conditional jump for C4, no definitely-lost blocks for C3, only three still-reachable ones left by a process that died early. Take `-D_FORTIFY_SOURCE=3` away and Valgrind has nothing to say about C1 at all.
 
-**ASan says almost nothing, because glibc gets there first.** The same input against the ASan build gives exit 134 and one line:
+**ASan says almost nothing, because glibc gets there first.** The same input against the ASan build gives exit 134 and a single line of output, from glibc rather than from ASan:
 
 ```
 *** buffer overflow detected ***: terminated
@@ -184,7 +184,7 @@ Exit 7, and the rest of the run never happens: no conditional jump for C4, no de
 
 No `global-buffer-overflow` report, no description of the write. glibc's `__strcpy_chk` calls `abort()` before AddressSanitizer's instrumentation can say anything, and since an abort is not a clean exit, LeakSanitizer's end-of-run check never runs either. The leak goes unreported too.
 
-One defect hides the other three, so the long line stays out of the input. Both static engines still block C1 at `error`, so nothing about it goes unproven. The general point is worth keeping: a hardening flag that stops an attack also destroys the evidence. That is the right trade for a shipped binary and the wrong one for a program you are trying to debug.
+One defect hides the other three, so the long line stays out of the input. Both static engines still block C1 at `error`, so nothing about it goes unproven. The general point is worth keeping. A hardening flag that stops an attack also destroys the evidence. That is the right trade for a shipped binary and the wrong one for a program you are trying to debug.
 
 ## What the fix changed
 
@@ -248,7 +248,9 @@ $ git log --oneline -1
 e21b852 fix: assert the gate blocks at vulnerable tags instead of failing open   # nothing landed
 ```
 
-Note which findings did the blocking: C3 and C4, neither of which anything else in the pipeline can see. Valgrind is not repeating what the static engines already said.
+The log the hook prints is Valgrind's, and it names C3 and C4, which neither static engine sees. Valgrind is not repeating what the static engines already said. C1 and C2 blocked in the same run, through the two SARIF block passes.
+
+That hook ran the three-engine gate. Since `3279ea5`, `scripts/scan.sh` also runs the ASan build on the test input and blocks on any report, so the same commit today would also print LeakSanitizer's report of C3 above Valgrind's log.
 
 ## Reproduce
 
