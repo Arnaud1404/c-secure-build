@@ -14,8 +14,7 @@ static char* history[HISTORY_SLOTS];
 static int* slot_used;
 static int history_count;
 
-/* Allocates the occupancy flags for the recall table. calloc, not malloc:
- * recall_slot reads flags for slots this session has not written yet. */
+/* calloc, not malloc: recall_slot reads flags for slots never written. */
 static void history_init(void) {
   slot_used = calloc(HISTORY_SLOTS, sizeof(int));
   if (slot_used == NULL) {
@@ -24,8 +23,7 @@ static void history_init(void) {
   }
 }
 
-/* Keeps the most recent command line for the `history` builtin. Must run
- * before parse_input, which tokenizes the buffer in place. */
+/* Must run before parse_input, which tokenizes the buffer in place. */
 static void record_history(const char* input) {
   snprintf(last_command, sizeof(last_command), "%s", input);
 
@@ -37,11 +35,9 @@ static void record_history(const char* input) {
   history_count++;
 }
 
-/* Prints the recorded command. The format stays a literal here: the
- * builtin's argument is attacker-controlled and is not one. */
+/* The argument is user input, so it is never the format. */
 static void show_history(void) { printf("%s\n", last_command); }
 
-/* Prints one slot of the recall table. */
 static void recall_slot(int slot) {
   if (slot < 0 || slot >= HISTORY_SLOTS) {
     printf("recall: slot out of range\n");
@@ -55,8 +51,7 @@ static void recall_slot(int slot) {
   }
 }
 
-/* Splits the input string into arguments using strtok_r,
- * modifying the input in-place. */
+/* Tokenizes input in place. */
 static void parse_input(char* input, char** args) {
   char* tokenizer_state;
   int arg_count = 0;
@@ -70,8 +65,6 @@ static void parse_input(char* input, char** args) {
   args[arg_count] = NULL;
 }
 
-/* Forks a child process to execute a command via execvp
- * and waits for it to complete. */
 static void execute_command(char** args) {
   if (args[0] == NULL)
     return;
@@ -79,31 +72,24 @@ static void execute_command(char** args) {
   pid_t pid = fork();
 
   if (pid == 0) {
-    /* Child process */
     /* flawfinder:ignore */
     execvp(args[0], args);
     perror("execvp failed");
     exit(EXIT_FAILURE);
   } else if (pid == -1) {
-    /* Fork failed */
     perror("fork failed");
     exit(EXIT_FAILURE);
   } else {
-    /* Parent process */
     waitpid(pid, NULL, 0);
   }
 }
 
-/* Outcome of routing a parsed command through the builtin table. */
 typedef enum {
-  BUILTIN_NONE,     /* Not a builtin; fall through to execute_command. */
-  BUILTIN_CONTINUE, /* Builtin handled; the REPL should keep looping. */
-  BUILTIN_EXIT,     /* Builtin handled; the REPL should terminate. */
+  BUILTIN_NONE,
+  BUILTIN_CONTINUE,
+  BUILTIN_EXIT,
 } builtin_result_t;
 
-/* Routes a parsed command to its builtin handler, if any. Returning
- * BUILTIN_NONE means the REPL should treat the input as the name of
- * an external program. */
 static builtin_result_t dispatch_builtin(char** args) {
   if (args[0] == NULL)
     return BUILTIN_NONE;
@@ -124,8 +110,6 @@ static builtin_result_t dispatch_builtin(char** args) {
   return BUILTIN_NONE;
 }
 
-/* Main REPL for the shell. Reads and executes commands
- * until 'exit' or EOF is received. */
 int main(void) {
   char* input_buffer = NULL;
   size_t buffer_size = 0;
