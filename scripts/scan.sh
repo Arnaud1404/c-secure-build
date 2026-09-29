@@ -64,7 +64,6 @@ valgrind --leak-check=full --show-leak-kinds=all \
     > /dev/null 2> "$valgrind_tmp" || blocked=1
 
 mkdir -p .security
-rm -f .security/*.sarif
 mv "$valgrind_tmp" .security/valgrind.log
 mv "$asan_tmp" .security/asan.log
 
