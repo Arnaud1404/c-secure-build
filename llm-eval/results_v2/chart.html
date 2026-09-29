@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Triage: speed vs. quality (v2 test, 117 findings)</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface-1: #fcfcfb; --page: #f9f9f7; --text-primary: #0b0b0b; --text-secondary: #52514e;
+  --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  }
+}
+body { margin: 0; }
+.viz-root { background: var(--page); color: var(--text-primary);
+  font: 14px/1.4 system-ui, sans-serif; padding: 24px; min-height: 100vh; box-sizing: border-box; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 16px 8px; max-width: 720px; position: relative; margin-bottom: 16px; }
+h1 { font-size: 16px; margin: 0 0 2px; }
+.sub { color: var(--text-secondary); margin: 0 0 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 4px; color: var(--text-secondary);
+  font-size: 12px; }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+svg { width: 100%; height: auto; display: block; }
+.key svg { width: 12px; height: 12px; }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--axis); stroke-width: 1; }
+.tick, .axis-title { fill: var(--muted); font-size: 12px; }
+.floor { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.floor-label, .delta { fill: var(--text-secondary); font-size: 12px; }
+.s1 { --c: var(--series-1); } .s2 { --c: var(--series-2); } .s3 { --c: var(--series-3); }
+.mono { --c: var(--text-secondary); }
+.dot { fill: var(--c); stroke: var(--surface-1); stroke-width: 2; }
+.ring { fill: var(--surface-1); stroke: var(--c); stroke-width: 2.5; }
+.before { fill: var(--muted); stroke: var(--surface-1); stroke-width: 2; }
+.connector { stroke: var(--axis); stroke-width: 2; }
+.hit { fill: transparent; }
+.pt { cursor: default; outline: none; }
+.pt:hover circle:not(.hit), .pt:focus circle:not(.hit) { r: 8; }
+.label { fill: var(--text-primary); font-size: 12px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
+  max-width: 260px; box-shadow: 0 2px 8px rgba(0,0,0,.12); display: none; }
+table { border-collapse: collapse; margin: 0 0 16px; max-width: 860px; width: 100%; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-secondary); font-weight: 600; }
+.t1 td:nth-child(n+3), .t1 th:nth-child(n+3), .t2 td:nth-child(n+2), .t2 th:nth-child(n+2) {
+  text-align: right; font-variant-numeric: tabular-nums; }
+.note { color: var(--text-secondary); max-width: 860px; }
+</style></head>
+<body><div class="viz-root">
+<div class="card">
+<h1>Triage: speed vs. quality</h1>
+<p class="sub">v2 test set, 117 Juliet findings (50 real bugs, 67 false positives), few-shot prompt.
+Up and left is better. Local models on an RTX 5060 Laptop (8 GB).</p>
+<div class="legend"><span class="key"><svg width="12" height="12"><circle class="dot s1" cx="6" cy="6" r="5"/></svg>Gemma 4</span><span class="key"><svg width="12" height="12"><circle class="dot s2" cx="6" cy="6" r="5"/></svg>Qwen3.5</span><span class="key"><svg width="12" height="12"><circle class="dot s3" cx="6" cy="6" r="5"/></svg>Claude</span><span class="key"><svg width="12" height="12"><circle class="dot mono" cx="6" cy="6" r="5"/></svg>filled: thinking</span><span class="key"><svg width="12" height="12"><circle class="ring mono" cx="6" cy="6" r="4.5"/></svg>ring: no thinking</span></div>
+<svg viewBox="0 0 720 420" role="img" aria-labelledby="t1 d1"><title id="t1">Speed vs. triage quality</title><desc id="d1">Median seconds per finding against balanced accuracy, one dot per model; see the table below.</desc><line class="grid" x1="64" x2="530" y1="364.0" y2="364.0"/><text class="tick" x="56" y="368.0" text-anchor="end">50%</text><line class="grid" x1="64" x2="530" y1="296.0" y2="296.0"/><text class="tick" x="56" y="300.0" text-anchor="end">60%</text><line class="grid" x1="64" x2="530" y1="228.0" y2="228.0"/><text class="tick" x="56" y="232.0" text-anchor="end">70%</text><line class="grid" x1="64" x2="530" y1="160.0" y2="160.0"/><text class="tick" x="56" y="164.0" text-anchor="end">80%</text><line class="grid" x1="64" x2="530" y1="92.0" y2="92.0"/><text class="tick" x="56" y="96.0" text-anchor="end">90%</text><line class="grid" x1="64" x2="530" y1="24.0" y2="24.0"/><text class="tick" x="56" y="28.0" text-anchor="end">100%</text><text class="tick" x="64.0" y="382" text-anchor="middle">1s</text><text class="tick" x="151.6" y="382" text-anchor="middle">2s</text><text class="tick" x="267.3" y="382" text-anchor="middle">5s</text><text class="tick" x="354.9" y="382" text-anchor="middle">10s</text><text class="tick" x="442.4" y="382" text-anchor="middle">20s</text><text class="tick" x="530.0" y="382" text-anchor="middle">40s</text><line class="axis" x1="64" x2="530" y1="364" y2="364"/><text class="axis-title" x="297" y="406" text-anchor="middle">Median seconds per finding (log scale, faster to the left)</text><text class="axis-title" transform="translate(16 194) rotate(-90)" text-anchor="middle">Balanced accuracy</text><line class="floor" x1="64" x2="530" y1="258.0" y2="258.0"/><text class="floor-label" x="536" y="262.0">word-count floor 65.6%</text><g class="pt" tabindex="0" data-tip="Gemma 4 E4B: 65.9% balanced, 2s median, real bugs kept 96%, false positives dismissed 36%, real bugs auto-dismissed 2/50"><circle class="hit" cx="162.2" cy="255.8" r="14"/><circle class="ring s1" cx="162.2" cy="255.8" r="6"/></g><text class="label" x="173.2" y="245.8">Gemma 4 E4B</text><g class="pt" tabindex="0" data-tip="Gemma 4 E4B, thinking: 85.0% balanced, 19s median, real bugs kept 88%, false positives dismissed 82%, real bugs auto-dismissed 6/50"><circle class="hit" cx="433.9" cy="125.7" r="14"/><circle class="dot s1" cx="433.9" cy="125.7" r="6"/></g><text class="label" x="444.9" y="129.7">Gemma 4 E4B, thinking</text><g class="pt" tabindex="0" data-tip="Gemma 4 12B: 79.1% balanced, 6s median, real bugs kept 82%, false positives dismissed 76%, real bugs auto-dismissed 8/50"><circle class="hit" cx="289.5" cy="166.4" r="14"/><circle class="ring s1" cx="289.5" cy="166.4" r="6"/></g><text class="label" x="300.5" y="170.4">Gemma 4 12B</text><g class="pt" tabindex="0" data-tip="Qwen3.5 9B: 70.9% balanced, 3s median, real bugs kept 88%, false positives dismissed 54%, real bugs auto-dismissed 6/50"><circle class="hit" cx="194.0" cy="222.1" r="14"/><circle class="ring s2" cx="194.0" cy="222.1" r="6"/></g><text class="label" x="205.0" y="226.1">Qwen3.5 9B</text><g class="pt" tabindex="0" data-tip="Claude Opus 5.5, medium (API): 98.3% balanced, 7s median, real bugs kept 98%, false positives dismissed 99%, real bugs auto-dismissed 1/50"><circle class="hit" cx="303.4" cy="35.9" r="14"/><circle class="dot s3" cx="303.4" cy="35.9" r="6"/></g><text class="label" x="314.4" y="39.9">Claude Opus 5.5, medium (API)</text></svg>
+<div class="tip" role="tooltip"></div>
+</div>
+<table class="t1"><thead><tr><th>model</th><th>build</th><th>balanced accuracy</th>
+<th>real bugs kept</th><th>false positives dismissed</th><th>real bugs auto-dismissed</th>
+<th>median</th><th>total</th></tr></thead><tbody><tr><td>Gemma 4 E4B</td><td>QAT Q4_0, llama.cpp b11218</td><td>65.9%</td><td>96%</td><td>36%</td><td>2/50</td><td>2s</td><td>5 min</td></tr><tr><td>Gemma 4 E4B, thinking</td><td>QAT Q4_0, llama.cpp b11218</td><td>85.0%</td><td>88%</td><td>82%</td><td>6/50</td><td>19s</td><td>42 min</td></tr><tr><td>Gemma 4 12B</td><td>QAT Q4_0, llama.cpp b11218</td><td>79.1%</td><td>82%</td><td>76%</td><td>8/50</td><td>6s</td><td>21 min</td></tr><tr><td>Qwen3.5 9B</td><td>Q4_K_M, llama.cpp b11218</td><td>70.9%</td><td>88%</td><td>54%</td><td>6/50</td><td>3s</td><td>6 min</td></tr><tr><td>Claude Opus 5.5, medium (API)</td><td>claude-opus-5-5, effort medium</td><td>98.3%</td><td>98%</td><td>99%</td><td>1/50</td><td>7s</td><td>13 min</td></tr></tbody></table>
+<div class="card">
+<h1>What the few-shot prompt changed</h1>
+<p class="sub">Same 117 findings. First prompt: no examples, TP defined by the rule's wording, 8K context.
+Few-shot prompt: production TP definition, checklist, 9 examples from train, 16K context. No thinking
+except Claude.</p>
+<div class="legend"><span class="key"><svg width="12" height="12"><circle class="before" cx="6" cy="6" r="5"/></svg>first prompt</span><span class="key"><svg width="12" height="12"><circle class="dot mono" cx="6" cy="6" r="5"/></svg>few-shot prompt (colour = model family)</span></div>
+<svg viewBox="0 0 760 244" role="img" aria-labelledby="t2 d2"><title id="t2">Effect of the few-shot prompt</title><desc id="d2">Balanced accuracy with the first prompt and with the few-shot prompt, one row per model; see the table below.</desc><line class="grid" x1="230.0" x2="230.0" y1="20" y2="210"/><text class="tick" x="230.0" y="228" text-anchor="middle">50%</text><line class="grid" x1="296.0" x2="296.0" y1="20" y2="210"/><text class="tick" x="296.0" y="228" text-anchor="middle">60%</text><line class="grid" x1="362.0" x2="362.0" y1="20" y2="210"/><text class="tick" x="362.0" y="228" text-anchor="middle">70%</text><line class="grid" x1="428.0" x2="428.0" y1="20" y2="210"/><text class="tick" x="428.0" y="228" text-anchor="middle">80%</text><line class="grid" x1="494.0" x2="494.0" y1="20" y2="210"/><text class="tick" x="494.0" y="228" text-anchor="middle">90%</text><line class="grid" x1="560.0" x2="560.0" y1="20" y2="210"/><text class="tick" x="560.0" y="228" text-anchor="middle">100%</text><text class="label" x="214" y="54.0" text-anchor="end">Gemma 4 E4B</text><line class="connector" x1="277.3" x2="335.0" y1="50.0" y2="50.0"/><g class="pt" tabindex="0" data-tip="Gemma 4 E4B, first prompt: 57.2% balanced, 2s median"><circle class="hit" cx="277.3" cy="50.0" r="14"/><circle class="before" cx="277.3" cy="50.0" r="5"/></g><g class="pt" tabindex="0" data-tip="Gemma 4 E4B, few-shot prompt: 65.9% balanced, 2s median"><circle class="hit" cx="335.0" cy="50.0" r="14"/><circle class="dot s1" cx="335.0" cy="50.0" r="6"/></g><text class="delta" x="572" y="54.0">+8.7 pts, median 2s, then 2s</text><text class="label" x="214" y="98.0" text-anchor="end">Gemma 4 12B</text><line class="connector" x1="326.6" x2="421.8" y1="94.0" y2="94.0"/><g class="pt" tabindex="0" data-tip="Gemma 4 12B, first prompt: 64.6% balanced, 4s median"><circle class="hit" cx="326.6" cy="94.0" r="14"/><circle class="before" cx="326.6" cy="94.0" r="5"/></g><g class="pt" tabindex="0" data-tip="Gemma 4 12B, few-shot prompt: 79.1% balanced, 6s median"><circle class="hit" cx="421.8" cy="94.0" r="14"/><circle class="dot s1" cx="421.8" cy="94.0" r="6"/></g><text class="delta" x="572" y="98.0">+14.4 pts, median 4s, then 6s</text><text class="label" x="214" y="142.0" text-anchor="end">Qwen3.5 9B</text><line class="connector" x1="309.5" x2="367.7" y1="138.0" y2="138.0"/><g class="pt" tabindex="0" data-tip="Qwen3.5 9B, first prompt: 62.0% balanced, 3s median"><circle class="hit" cx="309.5" cy="138.0" r="14"/><circle class="before" cx="309.5" cy="138.0" r="5"/></g><g class="pt" tabindex="0" data-tip="Qwen3.5 9B, few-shot prompt: 70.9% balanced, 3s median"><circle class="hit" cx="367.7" cy="138.0" r="14"/><circle class="dot s2" cx="367.7" cy="138.0" r="6"/></g><text class="delta" x="572" y="142.0">+8.8 pts, median 3s, then 3s</text><text class="label" x="214" y="186.0" text-anchor="end">Claude Opus 5.5, medium (API)</text><line class="connector" x1="507.2" x2="548.5" y1="182.0" y2="182.0"/><g class="pt" tabindex="0" data-tip="Claude Opus 5.5, medium (API), first prompt: 92.0% balanced, 7s median"><circle class="hit" cx="507.2" cy="182.0" r="14"/><circle class="before" cx="507.2" cy="182.0" r="5"/></g><g class="pt" tabindex="0" data-tip="Claude Opus 5.5, medium (API), few-shot prompt: 98.3% balanced, 7s median"><circle class="hit" cx="548.5" cy="182.0" r="14"/><circle class="dot s3" cx="548.5" cy="182.0" r="6"/></g><text class="delta" x="572" y="186.0">+6.3 pts, median 7s, then 7s</text></svg>
+<div class="tip" role="tooltip"></div>
+</div>
+<table class="t2"><thead><tr><th>model</th><th>first prompt</th><th>few-shot prompt</th>
+<th>change (pts)</th><th>median before</th><th>median after</th></tr></thead>
+<tbody><tr><td>Gemma 4 E4B</td><td>57.2%</td><td>65.9%</td><td>+8.7</td><td>2s</td><td>2s</td></tr><tr><td>Gemma 4 12B</td><td>64.6%</td><td>79.1%</td><td>+14.4</td><td>4s</td><td>6s</td></tr><tr><td>Qwen3.5 9B</td><td>62.0%</td><td>70.9%</td><td>+8.8</td><td>3s</td><td>3s</td></tr><tr><td>Claude Opus 5.5, medium (API)</td><td>92.0%</td><td>98.3%</td><td>+6.3</td><td>7s</td><td>7s</td></tr></tbody></table>
+<p class="note">Balanced accuracy is the mean of real bugs kept and false positives dismissed.
+The floor is a word-count classifier trained on the train split: a model at or below it is not
+reading the code. One run per configuration, temperature 0; with 117 findings, differences under
+about 10 points are within noise. Not run or not finished: Gemma 4 12B, thinking.</p>
+</div>
+<script>
+document.querySelectorAll('.card').forEach(card => {
+  const tip = card.querySelector('.tip');
+  function show(g) {
+    const b = g.querySelector('circle:not(.hit)').getBoundingClientRect(), c = card.getBoundingClientRect();
+    tip.textContent = g.dataset.tip; tip.style.display = 'block';
+    let left = b.left - c.left + 14, top = b.top - c.top - tip.offsetHeight - 8;
+    if (left + tip.offsetWidth > c.width) left = b.left - c.left - tip.offsetWidth - 8;
+    if (top < 0) top = b.bottom - c.top + 8;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  }
+  card.querySelectorAll('.pt').forEach(g => {
+    g.addEventListener('mouseenter', () => show(g)); g.addEventListener('focus', () => show(g));
+    g.addEventListener('mouseleave', () => tip.style.display = 'none');
+    g.addEventListener('blur', () => tip.style.display = 'none');
+  });
+});
+</script>
+</body></html>

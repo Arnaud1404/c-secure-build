@@ -1,0 +1,7 @@
+work/
+__pycache__/
+work_v2/
+# 91 MB, rebuilt by build_v2.py items
+eval_v2/train.jsonl
+harness/unsloth_compiled_cache/
+.ruff_cache/

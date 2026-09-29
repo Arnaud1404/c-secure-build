@@ -1,0 +1,11 @@
+12:44:58 claude done
+12:44:58 start qwen3.5-9b-nothink
+pid 28041: offloaded 33/33 layers to GPU
+12:51:49 end qwen3.5-9b-nothink rc=0
+12:51:54 start gemma-4-12b-nothink
+pid 35687: offloaded 49/49 layers to GPU
+13:00:47 end gemma-4-12b-nothink rc=0
+13:00:52 start gemma-4-e4b-nothink
+pid 40116: offloaded 43/43 layers to GPU
+13:05:45 end gemma-4-e4b-nothink rc=0
+13:05:50 all runs done
