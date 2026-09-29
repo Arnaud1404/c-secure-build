@@ -100,7 +100,6 @@ for REF in "${REFS[@]}"; do
 
     : > "$DIR/findings.tsv"
     for SARIF in "$DIR"/sarif/*.sarif; do
-        [ -f "$SARIF" ] || continue
         echo "=== $(basename "$SARIF")" >> "$DIR/findings.tsv"
         python3 -c '
 import json, sys
