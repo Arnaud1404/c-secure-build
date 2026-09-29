@@ -1,0 +1,23 @@
+2026-09-28 13:09:19,100 INFO claude/primary: 117 items, 0 already done
+2026-09-28 13:09:25,979 INFO [1/117] t2-001 label=TP verdict=TP 6.9s
+2026-09-28 13:09:34,326 INFO [2/117] t2-002 label=TP verdict=TP 8.3s
+2026-09-28 13:09:40,774 INFO [3/117] t2-003 label=TP verdict=TP 6.4s
+2026-09-28 13:09:47,421 INFO [4/117] t2-004 label=TP verdict=TP 6.6s
+2026-09-28 13:09:55,108 INFO [5/117] t2-005 label=TP verdict=TP 7.7s
+2026-09-28 13:10:02,079 INFO [6/117] t2-006 label=TP verdict=TP 7.0s
+2026-09-28 13:10:08,362 INFO [7/117] t2-007 label=TP verdict=TP 6.3s
+2026-09-28 13:10:14,864 INFO [8/117] t2-008 label=TP verdict=TP 6.5s
+2026-09-28 13:10:22,304 INFO [9/117] t2-009 label=TP verdict=TP 7.4s
+2026-09-28 13:10:28,703 INFO [10/117] t2-010 label=TP verdict=TP 6.4s
+2026-09-28 13:10:35,509 INFO [11/117] t2-011 label=TP verdict=TP 6.8s
+2026-09-28 13:10:42,414 INFO [12/117] t2-012 label=TP verdict=TP 6.9s
+2026-09-28 13:10:48,918 INFO [13/117] t2-013 label=TP verdict=TP 6.5s
+2026-09-28 13:10:55,490 INFO [14/117] t2-014 label=TP verdict=TP 6.6s
+2026-09-28 13:11:01,779 INFO [15/117] t2-015 label=TP verdict=TP 6.3s
+2026-09-28 13:11:08,427 INFO [16/117] t2-016 label=TP verdict=TP 6.6s
+2026-09-28 13:11:14,615 INFO [17/117] t2-017 label=TP verdict=TP 6.2s
+2026-09-28 13:11:21,106 INFO [18/117] t2-018 label=TP verdict=TP 6.5s
+2026-09-28 13:11:27,641 INFO [19/117] t2-019 label=TP verdict=TP 6.5s
+2026-09-28 13:11:39,116 INFO [20/117] t2-020 label=TP verdict=TP 11.5s
+2026-09-28 13:11:47,313 INFO [21/117] t2-021 label=TP verdict=TP 8.2s
+2026-09-28 13:11:54,106 INFO [22/117] t2-022 label=TP verdict=TP 6.8s

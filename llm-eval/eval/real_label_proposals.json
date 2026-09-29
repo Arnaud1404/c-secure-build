@@ -1,0 +1,186 @@
+{
+ "real/vuln_shell.c:19:raptor-integer-wraparound": {
+  "label": "FP",
+  "reason": "HISTORY_SLOTS * sizeof(int) is a compile-time constant (4 * 4); it cannot wrap."
+ },
+ "real/vuln_shell.c:19:raptor-interesting-api-calls": {
+  "label": "TP",
+  "reason": "This malloc is C4's root cause: calloc was needed, the flags are read before being written."
+ },
+ "real/vuln_shell.c:29:FF1001": {
+  "label": "TP",
+  "reason": "C1: strcpy of the unbounded getline buffer into a 32-byte global."
+ },
+ "real/vuln_shell.c:29:raptor-insecure-api-strcpy-strcat": {
+  "label": "TP",
+  "reason": "C1: strcpy of the unbounded getline buffer into a 32-byte global."
+ },
+ "real/vuln_shell.c:29:raptor-interesting-api-calls": {
+  "label": "TP",
+  "reason": "The flagged call is the C1 overflow itself."
+ },
+ "real/vuln_shell.c:32:raptor-unchecked-ret-malloc": {
+  "label": "FP",
+  "reason": "A NULL from strdup is stored and later handled: recall_slot checks history[slot] == NULL."
+ },
+ "real/vuln_shell.c:39:FF1016": {
+  "label": "TP",
+  "reason": "C2: user-supplied format string passed to printf."
+ },
+ "real/vuln_shell.c:39:raptor-format-string-bugs": {
+  "label": "TP",
+  "reason": "C2: user-supplied format string passed to printf."
+ },
+ "real/vuln_shell.c:46:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/vuln_shell.c:51:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/vuln_shell.c:53:FF1016": {
+  "label": "FP",
+  "reason": "Literal \"%s\\n\" format; the user data is an argument."
+ },
+ "real/vuln_shell.c:62:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "strtok_r with a local save pointer on a NUL-terminated getline buffer."
+ },
+ "real/vuln_shell.c:66:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "strtok_r with a local save pointer on a NUL-terminated getline buffer."
+ },
+ "real/vuln_shell.c:78:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "fork result is checked for -1 and 0."
+ },
+ "real/vuln_shell.c:83:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "execvp of user-typed commands is the shell's purpose; argv is not passed through a shell."
+ },
+ "real/vuln_shell.c:106:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/vuln_shell.c:112:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/vuln_shell.c:120:FF1022": {
+  "label": "FP",
+  "reason": "getline always NUL-terminates its buffer, so strlen cannot over-read."
+ },
+ "real/vuln_shell.c:138:FF1047": {
+  "label": "TP",
+  "reason": "TP: atoi has undefined behavior when the value does not fit in an int (C17 7.22.1p1), and the range check runs after the call. CERT ERR34-C; the fix is strtol with errno, endptr and range checks. Juliet labels its goodB2G atoi FP because it scores only the CWE-190 flaw under test."
+ },
+ "real/vuln_shell.c:138:raptor-insecure-api-ato": {
+  "label": "TP",
+  "reason": "TP: atoi has undefined behavior when the value does not fit in an int (C17 7.22.1p1), and the range check runs after the call. CERT ERR34-C; the fix is strtol with errno, endptr and range checks. Juliet labels its goodB2G atoi FP because it scores only the CWE-190 flaw under test."
+ },
+ "real/vuln_shell.c:148:raptor-mismatched-memory-management": {
+  "label": "FP",
+  "reason": "input_buffer comes from getline, which allocates with malloc; free is the matching release."
+ },
+ "real/vuln_shell.c:149:raptor-mismatched-memory-management": {
+  "label": "FP",
+  "reason": "slot_used comes from malloc; free is the matching release."
+ },
+ "real/hardened_shell.c:19:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "calloc of a constant size, result checked for NULL."
+ },
+ "real/hardened_shell.c:19:raptor-signed-unsigned-conversion": {
+  "label": "FP",
+  "reason": "Both calloc arguments are small positive constants."
+ },
+ "real/hardened_shell.c:28:FF1019": {
+  "label": "FP",
+  "reason": "snprintf bounded by sizeof(last_command) with a literal \"%s\" format."
+ },
+ "real/hardened_shell.c:28:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "snprintf bounded by sizeof(last_command) with a literal \"%s\" format."
+ },
+ "real/hardened_shell.c:32:raptor-mismatched-memory-management": {
+  "label": "FP",
+  "reason": "history[slot] holds a strdup result or NULL; free matches both."
+ },
+ "real/hardened_shell.c:33:raptor-unchecked-ret-malloc": {
+  "label": "FP",
+  "reason": "A NULL from strdup is stored and later handled: recall_slot checks history[slot] == NULL."
+ },
+ "real/hardened_shell.c:39:FF1016": {
+  "label": "FP",
+  "reason": "Literal \"%s\\n\" format; last_command is an argument."
+ },
+ "real/hardened_shell.c:43:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/hardened_shell.c:48:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/hardened_shell.c:50:FF1016": {
+  "label": "FP",
+  "reason": "Literal \"%s\\n\" format; the user data is an argument."
+ },
+ "real/hardened_shell.c:58:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "strtok_r with a local save pointer on a NUL-terminated getline buffer."
+ },
+ "real/hardened_shell.c:62:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "strtok_r with a local save pointer on a NUL-terminated getline buffer."
+ },
+ "real/hardened_shell.c:72:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "fork result is checked for -1 and 0."
+ },
+ "real/hardened_shell.c:76:raptor-interesting-api-calls": {
+  "label": "FP",
+  "reason": "execvp of user-typed commands is the shell's purpose; argv is not passed through a shell."
+ },
+ "real/hardened_shell.c:106:FF1047": {
+  "label": "TP",
+  "reason": "TP: atoi has undefined behavior when the value does not fit in an int (C17 7.22.1p1), and the range check runs after the call. CERT ERR34-C; the fix is strtol with errno, endptr and range checks. Juliet labels its goodB2G atoi FP because it scores only the CWE-190 flaw under test."
+ },
+ "real/hardened_shell.c:106:raptor-insecure-api-ato": {
+  "label": "TP",
+  "reason": "TP: atoi has undefined behavior when the value does not fit in an int (C17 7.22.1p1), and the range check runs after the call. CERT ERR34-C; the fix is strtol with errno, endptr and range checks. Juliet labels its goodB2G atoi FP because it scores only the CWE-190 flaw under test."
+ },
+ "real/hardened_shell.c:122:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/hardened_shell.c:128:FF1016": {
+  "label": "FP",
+  "reason": "printf with a string-literal format and no arguments."
+ },
+ "real/hardened_shell.c:136:FF1022": {
+  "label": "FP",
+  "reason": "getline always NUL-terminates its buffer, so strlen cannot over-read."
+ },
+ "real/hardened_shell.c:144:raptor-missing-break-in-switch": {
+  "label": "FP",
+  "reason": "The case without break ends in continue, which is intended."
+ },
+ "real/hardened_shell.c:144:raptor-missing-default-in-switch": {
+  "label": "FP",
+  "reason": "The switch covers every value of the enum it dispatches on."
+ },
+ "real/hardened_shell.c:160:raptor-mismatched-memory-management": {
+  "label": "FP",
+  "reason": "input_buffer comes from getline, which allocates with malloc; free is the matching release."
+ },
+ "real/hardened_shell.c:162:raptor-mismatched-memory-management": {
+  "label": "FP",
+  "reason": "history[i] holds strdup results or NULL; free matches both."
+ },
+ "real/hardened_shell.c:165:raptor-mismatched-memory-management": {
+  "label": "FP",
+  "reason": "slot_used comes from calloc; free is the matching release."
+ }
+}

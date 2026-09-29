@@ -1,0 +1,101 @@
+[
+ {
+  "id": "tr-24db85c64b",
+  "family": "CWE121_Stack_Based_Buffer_Overflow__CWE805_int_declare_memcpy",
+  "user": "Tool: Flawfinder\nRule: FF1004\nMessage: buffer/memcpy:Does not check for buffer overflows when copying to destination (CWE-120).\nFlagged lines: 17-17 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  \n    4  \n    5  \n    6  void nokaru()\n    7  {\n    8      int * data;\n    9      int temino[50];\n   10      int rirute[100];\n   11      \n   12  \n   13      data = temino;\n   14      {\n   15          int source[100] = {0}; \n   16          \n   17          memcpy(data, source, 100*sizeof(int));\n   18          printIntLine(data[0]);\n   19      }\n   20  }\n```",
+  "answer": {
+   "verdict": "TP",
+   "confidence": 0.95,
+   "cwe": "CWE-121",
+   "reason": "data points to the 50-int array (line 13), but memcpy copies 100 ints from source, writing 50 ints past the end of the stack array."
+  }
+ },
+ {
+  "id": "tr-9a6786b6ef",
+  "family": "CWE190_Integer_Overflow__int_fgets_add",
+  "user": "Tool: Flawfinder\nRule: FF1047\nMessage: integer/atoi:Unless checked, the resulting number can exceed the expected range (CWE-190).\nFlagged lines: 19-19 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #define CHAR_ARRAY_SIZE (3 * sizeof(data) + 2)\n    4  \n    5  \n    6  \n    7  \n    8  static void lynesu()\n    9  {\n   10      int data;\n   11      \n   12      data = 0;\n   13      {\n   14          char inputBuffer[CHAR_ARRAY_SIZE] = \"\";\n   15          \n   16          if (fgets(inputBuffer, CHAR_ARRAY_SIZE, stdin) != NULL)\n   17          {\n   18              \n   19              data = atoi(inputBuffer);\n   20          }\n   21          else\n   22          {\n   23              printLine(\"fgets() failed.\");\n   24          }\n   25      }\n   26      \n   27      if (data < INT_MAX)\n   28      {\n   29          int result = data + 1;\n   30          printIntLine(result);\n   31      }\n   32      else\n   33      {\n   34          printLine(\"data value is too large to perform arithmetic safely.\");\n   35      }\n   36  }\n```",
+  "answer": {
+   "verdict": "FP",
+   "confidence": 0.9,
+   "cwe": "",
+   "reason": "The value from atoi is only used under the check data < INT_MAX (line 27), so data + 1 on line 29 cannot overflow."
+  }
+ },
+ {
+  "id": "tr-04c4e6649c",
+  "family": "CWE134_Uncontrolled_Format_String__char_console_printf",
+  "user": "Tool: Flawfinder\nRule: FF1016\nMessage: format/printf:If format strings can be influenced by an attacker, they can be exploited (CWE-134).\nFlagged lines: 41-41 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #ifndef _WIN32\n    4  #include <wchar.h>\n    5  #endif\n    6  \n    7  \n    8  \n    9  \n   10  void taqupi()\n   11  {\n   12      char * data;\n   13      char dataBuffer[100] = \"\";\n   14      data = dataBuffer;\n   15      {\n   16          \n   17          size_t dataLen = strlen(data);\n   18          \n   19          if (100-dataLen > 1)\n   20          {\n   21              \n   22              if (fgets(data+dataLen, (int)(100-dataLen), stdin) != NULL)\n   23              {\n   24                  \n   25  \n   26                  dataLen = strlen(data);\n   27                  if (dataLen > 0 && data[dataLen-1] == '\\n')\n   28                  {\n   29                      data[dataLen-1] = '\\0';\n   30                  }\n   31              }\n   32              else\n   33              {\n   34                  printLine(\"fgets() failed\");\n   35                  \n   36                  data[dataLen] = '\\0';\n   37              }\n   38          }\n   39      }\n   40      \n   41      printf(data);\n   42  }\n```",
+  "answer": {
+   "verdict": "TP",
+   "confidence": 0.95,
+   "cwe": "CWE-134",
+   "reason": "data is filled from stdin by fgets (line 22) and then used as the format string of printf, so the user controls the format directives."
+  }
+ },
+ {
+  "id": "tr-655b905f1e",
+  "family": "CWE134_Uncontrolled_Format_String__char_console_printf",
+  "user": "Tool: Flawfinder\nRule: FF1013\nMessage: buffer/char:Statically-sized arrays can be improperly restricted, leading to potential overflows or other issues (CWE-119!/CWE-120).\nFlagged lines: 13-13 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #ifndef _WIN32\n    4  #include <wchar.h>\n    5  #endif\n    6  \n    7  \n    8  \n    9  \n   10  static void lytaze()\n   11  {\n   12      char * data;\n   13      char dataBuffer[100] = \"\";\n   14      data = dataBuffer;\n   15      \n   16      strcpy(data, \"xxxxxxxxxxxxxxx\");\n   17      \n   18      printf(data);\n   19  }\n```",
+  "answer": {
+   "verdict": "FP",
+   "confidence": 0.95,
+   "cwe": "",
+   "reason": "The 100-byte array only receives a 15-character constant (line 16). The declaration itself is not a defect and nothing overflows it."
+  }
+ },
+ {
+  "id": "tr-79a10bbd34",
+  "family": "CWE121_Stack_Based_Buffer_Overflow__CWE806_char_declare_ncat",
+  "user": "Tool: Flawfinder\nRule: FF1022\nMessage: buffer/strlen:Does not handle strings that are not \\0-terminated; if given one it may perform an over-read (it could cause a crash if unprotected) (CWE-126).\nFlagged lines: 19-19 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #include <wchar.h>\n    4  \n    5  \n    6  \n    7  \n    8  void tanepi()\n    9  {\n   10      char * data;\n   11      char dataBuffer[100];\n   12      data = dataBuffer;\n   13      \n   14      memset(data, 'A', 100-1); \n   15      data[100-1] = '\\0'; \n   16      {\n   17          char dest[50] = \"\";\n   18          \n   19          strncat(dest, data, strlen(data));\n   20          dest[50-1] = '\\0'; \n   21          printLine(data);\n   22      }\n   23  }\n```",
+  "answer": {
+   "verdict": "TP",
+   "confidence": 0.9,
+   "cwe": "CWE-121",
+   "reason": "data is NUL-terminated, so strlen does not over-read, but strncat appends strlen(data) = 99 chars to dest[50]: a stack overflow on this line. The rule names the wrong weakness; the line is still defective."
+  }
+ },
+ {
+  "id": "tr-1cb5305f74",
+  "family": "CWE121_Stack_Based_Buffer_Overflow__CWE805_int_declare_memcpy",
+  "user": "Tool: Flawfinder\nRule: FF1004\nMessage: buffer/memcpy:Does not check for buffer overflows when copying to destination (CWE-120).\nFlagged lines: 16-16 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  \n    4  \n    5  \n    6  static void hojalo()\n    7  {\n    8      int * data;\n    9      int jaholo[50];\n   10      int hotata[100];\n   11      \n   12      data = hotata;\n   13      {\n   14          int source[100] = {0}; \n   15          \n   16          memcpy(data, source, 100*sizeof(int));\n   17          printIntLine(data[0]);\n   18      }\n   19  }\n```",
+  "answer": {
+   "verdict": "FP",
+   "confidence": 0.95,
+   "cwe": "",
+   "reason": "data points to the 100-int array (line 12) and memcpy copies exactly 100 ints, so the copy fits. The 50-int array is never used."
+  }
+ },
+ {
+  "id": "tr-0107ace762",
+  "family": "CWE190_Integer_Overflow__int_fgets_add",
+  "user": "Tool: Flawfinder\nRule: FF1047\nMessage: integer/atoi:Unless checked, the resulting number can exceed the expected range (CWE-190).\nFlagged lines: 19-19 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #define CHAR_ARRAY_SIZE (3 * sizeof(data) + 2)\n    4  \n    5  \n    6  \n    7  \n    8  void loquri()\n    9  {\n   10      int data;\n   11      \n   12      data = 0;\n   13      {\n   14          char inputBuffer[CHAR_ARRAY_SIZE] = \"\";\n   15          \n   16          if (fgets(inputBuffer, CHAR_ARRAY_SIZE, stdin) != NULL)\n   17          {\n   18              \n   19              data = atoi(inputBuffer);\n   20          }\n   21          else\n   22          {\n   23              printLine(\"fgets() failed.\");\n   24          }\n   25      }\n   26      {\n   27          \n   28          int result = data + 1;\n   29          printIntLine(result);\n   30      }\n   31  }\n```",
+  "answer": {
+   "verdict": "TP",
+   "confidence": 0.9,
+   "cwe": "CWE-190",
+   "reason": "atoi converts console input with no range check, and line 28 adds 1 to it, which overflows for INT_MAX. This line is where the unchecked value comes from."
+  }
+ },
+ {
+  "id": "tr-32a7f9e132",
+  "family": "CWE134_Uncontrolled_Format_String__char_console_printf",
+  "user": "Tool: Flawfinder\nRule: FF1016\nMessage: format/printf:If format strings can be influenced by an attacker, they can be exploited (CWE-134).\nFlagged lines: 18-18 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #ifndef _WIN32\n    4  #include <wchar.h>\n    5  #endif\n    6  \n    7  \n    8  \n    9  \n   10  static void hopilo()\n   11  {\n   12      char * data;\n   13      char dataBuffer[100] = \"\";\n   14      data = dataBuffer;\n   15      \n   16      strcpy(data, \"xxxxxxxxxxxxxxx\");\n   17      \n   18      printf(data);\n   19  }\n```",
+  "answer": {
+   "verdict": "FP",
+   "confidence": 0.95,
+   "cwe": "",
+   "reason": "data holds a constant string (line 16) with no % directives, so printf(data) cannot be influenced by an attacker."
+  }
+ },
+ {
+  "id": "tr-8653b754f6",
+  "family": "CWE122_Heap_Based_Buffer_Overflow__c_src_char_cat",
+  "user": "Tool: Semgrep OSS\nRule: raptor-integer-wraparound\nMessage: The software performs a calculation that can produce an integer overflow or wraparound, when the logic assumes that the resulting value will always be larger than the original value. This can introduce other weaknesses when the calculation is used for resource management or execution control.\nFlagged lines: 11-11 (numbered below)\n\n```c\n    1  #include \"std_testcase.h\"\n    2  \n    3  #include <wchar.h>\n    4  \n    5  \n    6  \n    7  \n    8  static void dekane()\n    9  {\n   10      char * data;\n   11      data = (char *)malloc(100*sizeof(char));\n   12      if (data == NULL) {exit(-1);}\n   13      \n   14      memset(data, 'A', 50-1); \n   15      data[50-1] = '\\0'; \n   16      {\n   17          char dest[50] = \"\";\n   18          \n   19          strcat(dest, data);\n   20          printLine(data);\n   21          free(data);\n   22      }\n   23  }\n```",
+  "answer": {
+   "verdict": "FP",
+   "confidence": 0.9,
+   "cwe": "",
+   "reason": "100*sizeof(char) is a constant and cannot wrap. The 49 chars later appended to dest[50] also fit."
+  }
+ }
+]

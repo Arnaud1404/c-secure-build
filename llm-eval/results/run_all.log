@@ -1,0 +1,35 @@
+pid 96410: offloaded 33/33 layers to GPU
+2026-09-27 19:34:20,028 INFO qwen3.5-9b/primary: 39 items, 51 already done
+2026-09-27 19:37:47,245 WARNING jul-052: schema invalid (parse: none)
+2026-09-27 19:37:47,245 INFO [1/39] jul-052 label=FP verdict=None 207.2s
+2026-09-27 19:41:20,417 WARNING jul-053: schema invalid (parse: none)
+2026-09-27 19:41:20,417 INFO [2/39] jul-053 label=FP verdict=None 213.2s
+2026-09-27 19:44:31,753 WARNING jul-054: schema invalid (parse: none)
+2026-09-27 19:44:31,753 INFO [3/39] jul-054 label=FP verdict=None 191.3s
+2026-09-27 19:48:00,695 WARNING jul-055: schema invalid (parse: none)
+2026-09-27 19:48:00,695 INFO [4/39] jul-055 label=FP verdict=None 208.9s
+2026-09-27 19:51:26,049 WARNING jul-056: schema invalid (parse: none)
+2026-09-27 19:51:26,049 INFO [5/39] jul-056 label=FP verdict=None 205.4s
+2026-09-27 19:52:53,037 INFO [6/39] jul-057 label=FP verdict=FP 87.0s
+2026-09-27 19:53:21,931 INFO [7/39] jul-058 label=FP verdict=TP 28.9s
+2026-09-27 19:54:48,063 INFO [8/39] jul-059 label=FP verdict=FP 86.1s
+2026-09-27 19:57:59,508 WARNING jul-060: schema invalid (parse: none)
+2026-09-27 19:57:59,508 INFO [9/39] jul-060 label=FP verdict=None 191.4s
+2026-09-27 20:01:11,433 WARNING jul-061: schema invalid (parse: none)
+2026-09-27 20:01:11,434 INFO [10/39] jul-061 label=FP verdict=None 191.9s
+2026-09-27 20:01:58,020 INFO [11/39] jul-062 label=FP verdict=FP 46.6s
+2026-09-27 20:04:48,482 WARNING jul-063: schema invalid (parse: none)
+2026-09-27 20:04:48,482 INFO [12/39] jul-063 label=FP verdict=None 170.5s
+2026-09-27 20:06:12,672 INFO [13/39] jul-064 label=FP verdict=FP 84.2s
+2026-09-27 20:07:56,162 INFO [14/39] jul-065 label=FP verdict=TP 103.5s
+2026-09-27 20:11:10,995 WARNING jul-066: schema invalid (parse: none)
+2026-09-27 20:11:10,995 INFO [15/39] jul-066 label=FP verdict=None 194.8s
+2026-09-27 20:12:28,578 INFO [16/39] jul-067 label=FP verdict=FP 77.6s
+2026-09-27 20:15:42,345 WARNING jul-068: schema invalid (parse: none)
+2026-09-27 20:15:42,346 INFO [17/39] jul-068 label=FP verdict=None 193.8s
+2026-09-27 20:18:56,837 WARNING jul-069: schema invalid (parse: none)
+2026-09-27 20:18:56,837 INFO [18/39] jul-069 label=FP verdict=None 194.5s
+2026-09-27 20:22:12,195 WARNING jul-070: schema invalid (parse: none)
+2026-09-27 20:22:12,195 INFO [19/39] jul-070 label=FP verdict=None 195.4s
+2026-09-27 20:25:10,899 WARNING jul-071: schema invalid (parse: none)
+2026-09-27 20:25:10,899 INFO [20/39] jul-071 label=FP verdict=None 178.7s
