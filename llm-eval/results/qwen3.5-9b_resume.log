@@ -1,0 +1,24 @@
+2026-09-27 22:52:53,999 INFO qwen3.5-9b/primary: 19 items, 71 already done
+2026-09-27 22:53:52,424 INFO [1/19] jul-072 label=FP verdict=TP 58.4s
+2026-09-27 22:54:33,183 INFO [2/19] jul-073 label=FP verdict=TP 40.8s
+2026-09-27 22:58:01,944 WARNING jul-074: schema invalid (parse: none)
+2026-09-27 22:58:01,945 INFO [3/19] jul-074 label=FP verdict=None 208.8s
+2026-09-27 23:00:24,452 INFO [4/19] jul-075 label=FP verdict=TP 142.5s
+2026-09-27 23:01:40,267 INFO [5/19] jul-076 label=FP verdict=TP 75.8s
+2026-09-27 23:03:22,127 INFO [6/19] jul-077 label=FP verdict=FP 101.9s
+2026-09-27 23:04:03,335 INFO [7/19] jul-078 label=FP verdict=TP 41.2s
+2026-09-27 23:05:53,188 INFO [8/19] jul-079 label=FP verdict=FP 109.9s
+2026-09-27 23:09:10,974 WARNING jul-080: schema invalid (parse: none)
+2026-09-27 23:09:10,974 INFO [9/19] jul-080 label=FP verdict=None 197.8s
+2026-09-27 23:10:52,677 INFO [10/19] jul-081 label=FP verdict=FP 101.7s
+2026-09-27 23:11:55,688 INFO [11/19] jul-082 label=FP verdict=TP 63.0s
+2026-09-27 23:15:05,982 WARNING jul-083: schema invalid (parse: none)
+2026-09-27 23:15:05,982 INFO [12/19] jul-083 label=FP verdict=None 190.3s
+2026-09-27 23:16:22,960 INFO [13/19] jul-084 label=FP verdict=TP 77.0s
+2026-09-27 23:17:00,794 INFO [14/19] jul-085 label=FP verdict=FP 37.8s
+2026-09-27 23:18:02,544 INFO [15/19] jul-086 label=FP verdict=FP 61.7s
+2026-09-27 23:21:17,263 WARNING jul-087: schema invalid (parse: none)
+2026-09-27 23:21:17,263 INFO [16/19] jul-087 label=FP verdict=None 194.7s
+2026-09-27 23:23:01,858 INFO [17/19] jul-088 label=FP verdict=TP 104.6s
+2026-09-27 23:24:33,109 INFO [18/19] jul-089 label=FP verdict=FP 91.2s
+2026-09-27 23:26:06,353 INFO [19/19] jul-090 label=FP verdict=FP 93.2s
