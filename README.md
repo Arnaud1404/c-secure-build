@@ -119,7 +119,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" c-secure-build-toolcha
 ```
 
 - The image holds the toolchain only, and the tree is mounted at `/src`, so one image scans any checkout, tags included.
-- The base is `ubuntu:24.04` pinned by digest, and apt reads the Ubuntu snapshot archive at a fixed date. Every build gets the same packages: gcc 13.3, clang 18.1, valgrind 3.22.
+- The base is `ubuntu:24.04` pinned by digest, and apt reads the Ubuntu snapshot archive at a fixed date. Every build gets the same packages: gcc 13.3 and valgrind 3.22.
 - Rootless Podman needs `--userns=keep-id` in place of `--user`, which `make CONTAINER=podman` passes for you.
 
 ### The pre-commit hook
