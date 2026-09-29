@@ -11,10 +11,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates \
  && apt-get update --error-on=any --snapshot "$SNAPSHOT" \
  && apt-get install -y --no-install-recommends \
-        clang=1:18.0-59~exp2 \
         gcc=4:13.2.0-7ubuntu1 \
         libc6-dev \
-        libclang-rt-18-dev \
         make=4.3-4.1build2 \
         python3-venv=3.12.3-0ubuntu2.1 \
         valgrind=1:3.22.0-0ubuntu3 \
