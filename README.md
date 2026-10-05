@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml)
 
-A POSIX shell in C with four planted bugs, and a pipeline that finds them and blocks the commit until they are fixed. The shell is only there to give the scanners something to find. `make scan` exits 1 at the `v2-vulnerable` tag and 0 at `v2-patched`, which differ only in the four fixes.
+A POSIX shell in C with four planted bugs, and a pipeline that finds them and blocks the commit until they are fixed. The shell is only there to give the scanners something to find. `./scripts/scan.sh` exits 1 at the `v2-vulnerable` tag and 0 at `v2-patched`, which differ only in the four fixes. `make scan` exits 2 on the first, because Make reports any failing recipe as its own exit 2.
 
 ## Pipeline at a glance
 
@@ -137,8 +137,8 @@ make hooks
 ### Watch the gate flip
 
 ```bash
-git checkout v2-vulnerable && make scan   # exits 1, blocked
-git checkout v2-patched   && make scan    # exits 0, clean
+git checkout v2-vulnerable && ./scripts/scan.sh   # exits 1, blocked
+git checkout v2-patched   && ./scripts/scan.sh    # exits 0, clean
 ```
 
 Each tag carries its own copy of the gate, so this is the verdict that tag got at the time. CI asserts the same thing on every push. A `*-vulnerable` tag that passes the gate fails the build.
@@ -217,7 +217,7 @@ All four defects compile cleanly under `-Wall -Wextra -Werror -pedantic -Wformat
 
 | Signal | `v2-vulnerable` | `v2-patched` |
 |---|---|---|
-| `make scan` | 1, blocked | 0, clean |
+| `./scripts/scan.sh` | 1, blocked | 0, clean |
 | Flawfinder block pass | 1 | 0 |
 | Semgrep block pass | 1 | 0 |
 | Valgrind | 7 | 0 |
