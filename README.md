@@ -150,7 +150,7 @@ A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plu
 | Version | File | Lines | Built | Scanned |
 |---|---|---|---|---|
 | vulnerable | [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak) | 152 | no | no |
-| hardened | [`src/hardened_shell.c`](src/hardened_shell.c) | 190 | yes | yes |
+| hardened | [`src/hardened_shell.c`](src/hardened_shell.c) | 189 | yes | yes |
 
 The vulnerable version stays in the tree for the docs:
 
