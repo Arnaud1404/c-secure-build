@@ -122,6 +122,10 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" c-secure-build-toolcha
 - The base is `ubuntu:24.04` pinned by digest, and apt reads the Ubuntu snapshot archive at a fixed date. Every build gets the same packages: gcc 13.3 and valgrind 3.22.
 - Rootless Podman needs `--userns=keep-id` in place of `--user`, which `make CONTAINER=podman` passes for you.
 
+### In a Codespace
+
+`.devcontainer/devcontainer.json` builds the same image and mounts the tree at `/src`, so a machine with only a browser can run it: Code, then Codespaces, then create one on `main`, and in its terminal run `make test && ./scripts/scan.sh`.
+
 ### The pre-commit hook
 
 Git does not clone hooks, so install it once after cloning:
@@ -302,6 +306,8 @@ c-secure-build/
 ├── .github/workflows/ci.yml    # build matrix, gate, SARIF upload, secret scan
 ├── Makefile                    # build, scan, hooks, image, docker-scan
 ├── Dockerfile                  # the pinned toolchain image the gate runs in
+├── .devcontainer/              # Codespaces config built on the Dockerfile
+├── AGENTS.md                   # rules and commands for coding agents
 └── requirements.txt            # pinned scanner versions, shared with CI
 ```
 

@@ -1,0 +1,10 @@
+{
+  "name": "c-secure-build",
+  "build": { "dockerfile": "../Dockerfile", "context": ".." },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/src,type=bind",
+  "workspaceFolder": "/src",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "git config --global --add safe.directory /src"
+}
