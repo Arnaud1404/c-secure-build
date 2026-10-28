@@ -312,6 +312,7 @@ c-secure-build/
 ├── Dockerfile                  # the pinned toolchain image the gate runs in
 ├── .devcontainer/              # Codespaces config built on the Dockerfile
 ├── AGENTS.md                   # rules and commands for coding agents
+├── CLAUDE.md                   # imports AGENTS.md for Claude Code
 └── requirements.txt            # pinned scanner versions, shared with CI
 ```
 
