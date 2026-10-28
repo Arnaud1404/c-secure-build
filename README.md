@@ -4,6 +4,10 @@
 
 A POSIX shell in C with four planted bugs, and a pipeline that finds them and blocks the commit until they are fixed. The shell is only there to give the scanners something to find. `./scripts/scan.sh` exits 1 at the `v2-vulnerable` tag and 0 at `v2-patched`, which differ only in the four fixes. `make scan` exits 2 on the first, because Make reports any failing recipe as its own exit 2.
 
+## LLM triage (`llm-eval/`)
+
+The scanners flag many lines that are not bugs. `llm-eval/` measures whether a local model can sort them, on 117 Juliet findings (50 real, 67 false positives) whose labels no model produced. With thinking on, gemma-4-E4B reaches 85.0% balanced accuracy against a 65.6% naive Bayes floor: used as a filter, it removes 55 of the 67 false positives and wrongly dismisses 6 of the 50 real bugs. Claude, as a reference, reaches 98.3%. Limits: the filter is not wired into the gate, and the set is synthetic Juliet code. Details and reproduction in [`llm-eval/README.md`](llm-eval/README.md), numbers in [`llm-eval/results_v2/report.md`](llm-eval/results_v2/report.md).
+
 ## Pipeline at a glance
 
 ```mermaid
@@ -37,7 +41,7 @@ flowchart TD
     P -->|yes| N["merge allowed"]
 ```
 
-Jump to: [quick start](#quick-start) · [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sarif-gate) · [CI](#the-ci-pipeline)
+Jump to: [LLM triage](#llm-triage-llm-eval) · [quick start](#quick-start) · [the target](#the-vulnerable-target) · [the gate](#the-multi-engine-sarif-gate) · [CI](#the-ci-pipeline)
 
 ## Quick start
 
