@@ -46,13 +46,14 @@ ASAN_OPTIONS=detect_leaks=1 \
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
     ./bin/c-secure-shell < tests/vuln_shell_commands.txt \
     > /dev/null 2> "$asan_tmp" || blocked=1
-# collect_security_data.sh runs this gate on tags that predate the test.
-if [ -e tests/recall_test.sh ]; then
+# collect_security_data.sh runs this gate on tags that predate the tests.
+for test_script in tests/recall_test.sh tests/shell_test.sh; do
+    [ -e "$test_script" ] || continue
     ASAN_OPTIONS=detect_leaks=1 \
     UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
-        ./tests/recall_test.sh ./bin/c-secure-shell \
+        "./$test_script" ./bin/c-secure-shell \
         > /dev/null 2>> "$asan_tmp" || blocked=1
-fi
+done
 
 make clean > /dev/null 2>&1
 make VALGRIND=1 > /dev/null 2>&1
