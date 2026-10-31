@@ -27,7 +27,10 @@ static void history_init(void) {
 
 /* Must run before parse_input, which tokenizes the buffer in place. */
 static void record_history(const char* input) {
-  snprintf(last_command, sizeof(last_command), "%s", input);
+  /* Taken from the ring, or `history` would only ever show itself. */
+  const char* previous = history[(history_count + HISTORY_SLOTS - 1) % HISTORY_SLOTS];
+  if (previous != NULL)
+    snprintf(last_command, sizeof(last_command), "%s", previous);
 
   int slot = history_count % HISTORY_SLOTS;
   /* The ring wraps, so this slot may already own a string. */
