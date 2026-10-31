@@ -56,7 +56,7 @@ test:
 	@$(MAKE) --no-print-directory ASAN=1 VALGRIND=0 all > /dev/null
 	ASAN_OPTIONS=detect_leaks=1 \
 	UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
-	    ./tests/recall_test.sh $(TARGET)
+	    sh -c './tests/recall_test.sh $(TARGET) && ./tests/shell_test.sh $(TARGET)'
 
 scan:
 	./scripts/scan.sh
