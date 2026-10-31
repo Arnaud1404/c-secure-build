@@ -29,6 +29,15 @@ fi
 mkdir -p "$OUT_DIR"
 DATA_ROOT="$(cd "$OUT_DIR" && pwd -P)"
 
+WORKTREE=""
+remove_worktree() {
+    [ -n "$WORKTREE" ] || return 0
+    git -C "$REPO_ROOT" worktree remove --force "$WORKTREE" > /dev/null 2>&1 || \
+        rm -rf "$WORKTREE"
+    WORKTREE=""
+}
+trap remove_worktree EXIT
+
 for REF in "${REFS[@]}"; do
     SLUG="$(printf '%s' "$REF" | tr '/' '-')"
     DIR="$DATA_ROOT/$SLUG"
@@ -150,8 +159,7 @@ for run in data.get("runs", []):
         echo "valgrind:   $(valgrind --version 2> /dev/null || echo missing)"
     } > "$DIR/versions.txt"
 
-    git -C "$REPO_ROOT" worktree remove --force "$WORKTREE" > /dev/null 2>&1 || \
-        rm -rf "$WORKTREE"
+    remove_worktree
 done
 
 # Both paths, or the diff across the rename shows a deleted file.
