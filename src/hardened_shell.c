@@ -25,6 +25,13 @@ static void history_init(void) {
   }
 }
 
+static void wipe_and_free(char* text) {
+  if (text != NULL) {
+    explicit_bzero(text, strlen(text));
+    free(text);
+  }
+}
+
 /* Must run before parse_input, which tokenizes the buffer in place. */
 static void record_history(const char* input) {
   /* Taken from the ring, or `history` would only ever show itself. */
@@ -34,7 +41,7 @@ static void record_history(const char* input) {
 
   int slot = history_next;
   /* The ring wraps, so this slot may already own a string. */
-  free(history[slot]);
+  wipe_and_free(history[slot]);
   history[slot] = strdup(input);
   if (history[slot] == NULL) {
     perror("strdup failed");
@@ -207,8 +214,9 @@ int main(void) {
 
   free(input_buffer);
   for (int i = 0; i < HISTORY_SLOTS; i++) {
-    free(history[i]);
+    wipe_and_free(history[i]);
   }
+  explicit_bzero(last_command, sizeof(last_command));
 
   free(slot_used);
 
