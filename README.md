@@ -143,6 +143,8 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 
 Third-party actions are pinned by commit SHA, downloaded tools by SHA-256. The image pins `ubuntu:24.04` by digest and reads the Ubuntu snapshot archive at a fixed date (gcc 13.3, valgrind 3.22).
 
+Branch protection on `main` requires `build (gcc)`, `build (clang)`, `security gate` and `secret scan`, for admins too.
+
 ## Hardening
 
 | Flag | Why |
@@ -164,7 +166,6 @@ The scanners flag many lines that are not bugs. `llm-eval/` measures whether a l
 
 - Four defects I wrote in one program show how the tools differ. They give no detection rate.
 - Dynamic engines only see what the test input exercises.
-- Branch protection is off on `main`, so CI reports but does not block a merge. Required checks would be `build (gcc)`, `build (clang)`, `security gate` and `secret scan`.
 - The pre-commit hook scans the working tree, not the staged content, so unstaged fixes can make a bad commit pass. Anyone can also pass `--no-verify`. CI is the authority.
 - The LLM filter is not wired into the gate, and its set is synthetic Juliet code.
 - `requirements.txt` pins the scanners but not their dependencies, and the release job runs the collector on the runner, not in the image.
