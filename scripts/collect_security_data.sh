@@ -113,7 +113,8 @@ for REF in "${REFS[@]}"; do
         python3 -c '
 import json, sys
 
-data = json.load(open(sys.argv[1]))
+with open(sys.argv[1]) as sarif:
+    data = json.load(sarif)
 for run in data.get("runs", []):
     driver = run.get("tool", {}).get("driver", {})
     tool = driver.get("name", "?")
