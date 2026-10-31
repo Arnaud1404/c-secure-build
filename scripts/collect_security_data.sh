@@ -135,8 +135,12 @@ for run in data.get("runs", []):
     done
 
     echo "== $REF: raw Valgrind log"
+    # A failed build would record exit 127 as if it were the tool's verdict.
+    if ! (cd "$WORKTREE" && make clean > /dev/null 2>&1 && make VALGRIND=1 > /dev/null 2>&1); then
+        echo "ERROR: the Valgrind build failed at $REF." >&2
+        exit 1
+    fi
     set +e
-    (cd "$WORKTREE" && make clean > /dev/null 2>&1 && make VALGRIND=1 > /dev/null 2>&1)
     (cd "$WORKTREE" && valgrind --leak-check=full --show-leak-kinds=all \
         --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=7 \
         ./bin/c-secure-shell < tests/vuln_shell_commands.txt > /dev/null) \
@@ -145,8 +149,11 @@ for run in data.get("runs", []):
     set -e
 
     echo "== $REF: AddressSanitizer build and run"
+    if ! (cd "$WORKTREE" && make clean > /dev/null 2>&1 && make > /dev/null 2>&1); then
+        echo "ERROR: the sanitizer build failed at $REF." >&2
+        exit 1
+    fi
     set +e
-    (cd "$WORKTREE" && make clean > /dev/null 2>&1 && make > /dev/null 2>&1)
     (cd "$WORKTREE" && ASAN_OPTIONS=detect_leaks=1 \
         ./bin/c-secure-shell < tests/vuln_shell_commands.txt > /dev/null) \
         2> "$DIR/asan.log"
