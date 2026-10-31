@@ -104,7 +104,8 @@ static void execute_command(char** args) {
     /* flawfinder:ignore */
     execvp(args[0], args);
     perror("execvp failed");
-    exit(EXIT_FAILURE);
+    /* exit() would run stdio cleanup here and rewind the stdin offset it shares with the shell. */
+    _exit(127);
   } else if (pid == -1) {
     perror("fork failed");
     exit(EXIT_FAILURE);
