@@ -194,6 +194,7 @@ jobs:
 
   security-report:
     name: security-data release
+    needs: [scan, secrets, fixtures]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
