@@ -164,6 +164,10 @@ jobs:
             fi
           }
           check v2-vulnerable src/vuln_shell.c.bak
+          if ! sed '/^ *\/\* C[1-4] CWE-/d' docs/vuln_shell_annotated.c | diff -u - src/vuln_shell.c.bak > /dev/null; then
+            echo "::error file=docs/vuln_shell_annotated.c::differs from the mirror beyond its C1-C4 comments"
+            rc=1
+          fi
           exit "$rc"
 
   secrets:

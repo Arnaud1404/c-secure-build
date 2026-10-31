@@ -84,6 +84,7 @@ A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plu
 | Version | File | Built and scanned |
 |---|---|---|
 | vulnerable | [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak), byte-for-byte mirror of `v2-vulnerable`, so the line numbers in `docs/` resolve at `HEAD` | no |
+| vulnerable, annotated | [`docs/vuln_shell_annotated.c`](docs/vuln_shell_annotated.c), the mirror plus a comment above each defect, so its line numbers run 1 to 4 ahead of `docs/` | no |
 | hardened | [`src/hardened_shell.c`](src/hardened_shell.c), started as `v2-patched` and refactored since | yes |
 
 Neither static engine parses `.bak` as C. Renamed to `.c`, `make scan` blocks. `v2-patched` fixes all four defects in 15 insertions and 9 deletions. The shell is not meant to be a secure shell.
@@ -137,7 +138,7 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 | `build (gcc)`, `build (clang)` | Hardened build under both compilers |
 | `security gate` | `scripts/scan.sh` in the pinned image, then one SARIF upload per engine. A `*-vulnerable` tag that passes fails the job |
 | `secret scan` | `gitleaks` over the full history |
-| `fixture mirrors` | Asserts `src/vuln_shell.c.bak` still matches `v2-vulnerable` |
+| `fixture mirrors` | Asserts `src/vuln_shell.c.bak` still matches `v2-vulnerable`, and `docs/vuln_shell_annotated.c` differs from it only by its comments |
 | `lint and harness tests` | shellcheck, ruff, and pytest on `llm-eval/tests` |
 | `security-data release` | On `v*` tags, after the gate: attaches `security-data-<tag>.zip` to a release |
 
@@ -179,7 +180,7 @@ src/vuln_shell.c.bak      mirror of v2-vulnerable; not built, not scanned
 tests/                    test input for the dynamic engines, recall and shell behaviour tests
 scripts/scan.sh           the gate
 scripts/collect_security_data.sh  before/after dataset for two refs
-docs/                     security report
+docs/                     security report, annotated copy of the vulnerable shell
 .semgrep/rules/           vendored pack and NOTICE
 .semgrep/local/           this project's ban list and its rule tests
 .githooks/pre-commit      installed by make hooks
