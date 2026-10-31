@@ -15,7 +15,7 @@ Run them in the pinned toolchain (Linux, the devcontainer, or `make docker-scan`
 
 ```bash
 make                 # hardened build, ASan + UBSan
-make test            # rebuilds with sanitizers, runs tests/recall_test.sh
+make test            # rebuilds with sanitizers, runs tests/recall_test.sh and tests/shell_test.sh
 make scan            # security gate; make reports a gate exit 1 as 2
 make docker-scan     # same gate inside the pinned image
 make hooks           # install the pre-commit hook
@@ -37,6 +37,6 @@ A change is done when `make test` and `make scan` both pass.
 
 1. One task per branch, one logical change per commit, conventional subject (`fix:`, `feat:`, `docs:`), no body.
 2. Before editing, read the file's header comment and the related test.
-3. A bug fix comes with a case in `tests/recall_test.sh` that fails before the fix.
+3. A bug fix comes with a case in `tests/` that fails before the fix.
 4. Update `README.md` when a command, an exit code or the pipeline diagram changes.
 5. A human reviews every diff; CI must be green before merge.
