@@ -36,6 +36,10 @@ static void record_history(const char* input) {
   /* The ring wraps, so this slot may already own a string. */
   free(history[slot]);
   history[slot] = strdup(input);
+  if (history[slot] == NULL) {
+    perror("strdup failed");
+    exit(EXIT_FAILURE);
+  }
   slot_used[slot] = 1;
   /* A running count would overflow int in a very long session. */
   history_next = (slot + 1) % HISTORY_SLOTS;
