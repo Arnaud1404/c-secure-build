@@ -154,6 +154,7 @@ int main(void) {
   size_t buffer_size = 0;
   ssize_t bytes_read;
   int keep_running = 1;
+  int status = EXIT_SUCCESS;
 
   history_init();
 
@@ -164,6 +165,11 @@ int main(void) {
     bytes_read = getline(&input_buffer, &buffer_size, stdin);
 
     if (bytes_read == -1) {
+      /* getline can fail on allocation without setting the error flag. */
+      if (!feof(stdin)) {
+        perror("getline failed");
+        status = EXIT_FAILURE;
+      }
       printf("\nExiting...\n");
       break;
     }
@@ -206,5 +212,5 @@ int main(void) {
 
   free(slot_used);
 
-  return 0;
+  return status;
 }
