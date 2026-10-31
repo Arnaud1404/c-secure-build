@@ -69,17 +69,21 @@ static bool parse_int(const char* text, int* out) {
 }
 
 /* Tokenizes input in place. */
-static void parse_input(char* input, char** args) {
+static bool parse_input(char* input, char** args) {
   char* tokenizer_state;
   int arg_count = 0;
   char* current_token = strtok_r(input, " \t", &tokenizer_state);
 
-  while (current_token != NULL && arg_count < MAX_ARGS - 1) {
+  while (current_token != NULL) {
+    /* Dropping the excess would run a different command than the one typed. */
+    if (arg_count == MAX_ARGS - 1)
+      return false;
     args[arg_count++] = current_token;
     current_token = strtok_r(NULL, " \t", &tokenizer_state);
   }
 
   args[arg_count] = NULL;
+  return true;
 }
 
 static void execute_command(char** args) {
@@ -160,7 +164,10 @@ int main(void) {
     record_history(input_buffer);
 
     char* parsed_args[MAX_ARGS];
-    parse_input(input_buffer, parsed_args);
+    if (!parse_input(input_buffer, parsed_args)) {
+      printf("too many arguments\n");
+      continue;
+    }
 
     switch (dispatch_builtin(parsed_args)) {
       case BUILTIN_EXIT:
