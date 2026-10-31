@@ -5,3 +5,5 @@ work_v2/
 eval_v2/train.jsonl
 harness/unsloth_compiled_cache/
 .ruff_cache/
+results/**/*.log*
+results_v2/**/*.log*
