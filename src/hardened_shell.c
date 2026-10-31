@@ -114,8 +114,9 @@ static void execute_command(char** args) {
     /* exit() would run stdio cleanup here and rewind the stdin offset it shares with the shell. */
     _exit(127);
   } else if (pid == -1) {
+    /* Often transient (EAGAIN), so it should not end the session. */
     perror("fork failed");
-    exit(EXIT_FAILURE);
+    return;
   }
 
   while (waitpid(pid, NULL, 0) == -1) {
