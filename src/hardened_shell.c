@@ -109,8 +109,13 @@ static void execute_command(char** args) {
   } else if (pid == -1) {
     perror("fork failed");
     exit(EXIT_FAILURE);
-  } else {
-    waitpid(pid, NULL, 0);
+  }
+
+  while (waitpid(pid, NULL, 0) == -1) {
+    if (errno != EINTR) {
+      perror("waitpid failed");
+      break;
+    }
   }
 }
 
