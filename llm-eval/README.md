@@ -78,6 +78,14 @@ python3 llm-eval/harness/stats.py --items llm-eval/eval_v2/test.jsonl --results 
 
 `results_v2/report.md` holds the current numbers. `results_v2/prompt1/` keeps the runs with the earlier prompt, for comparison.
 
+## Status
+
+- Not finished: Gemma 4 12B with thinking stopped at 74/117 and is absent from the report's conclusions. Qwen3.5 9B with thinking was dropped.
+- Distillation does not work yet: `harness/train_sft.py` exceeds 8 GB of VRAM on E4B (peak 9.45 GB), and 168 of the 390 teacher answers are collected.
+- Not done: an order check, rerunning items in reverse to see whether verdicts move.
+- Not pinned: `train_sft.py` imports `datasets`, `trl` and `unsloth`, whose versions were not recorded. The other harness scripts use the standard library.
+- Raw server and run logs are no longer tracked. The per-model `*_primary.jsonl` answers stay, and `tests/test_stats.py` recomputes a published score from them.
+
 ## Optional: Claude backend
 
 `run_eval.py run ... --backend claude [--claude-model claude-sonnet-5]` sends the same prompt and schema through `claude -p` (no tools, no session saved). The code leaves the machine, so use it only on public code such as Juliet and this repo.
