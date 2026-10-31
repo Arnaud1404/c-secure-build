@@ -36,6 +36,38 @@ jobs:
       - name: Build with hardening flags and sanitizers
         run: make
 
+  lint:
+    name: lint and harness tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the pinned tools
+        env:
+          SHELLCHECK_VERSION: 0.11.0
+          SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+        run: |
+          pip install -r requirements-dev.txt
+          curl -sSLo shellcheck.tar.xz \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          echo "${SHELLCHECK_SHA256}  shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf shellcheck.tar.xz --strip-components=1 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+          sudo mv shellcheck /usr/local/bin/shellcheck
+          rm -f shellcheck.tar.xz
+
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh tests/*.sh .githooks/pre-commit llm-eval/harness/*.sh
+
+      - name: Ruff
+        run: ruff check llm-eval
+
+      - name: Harness tests
+        run: python -m pytest -q llm-eval/tests
+
   scan:
     name: security gate
     runs-on: ubuntu-24.04
