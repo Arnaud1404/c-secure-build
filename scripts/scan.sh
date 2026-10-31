@@ -37,8 +37,8 @@ blocked=0
 # Dynamic passes first: make clean also removes .security.
 # Valgrind cannot run an ASan binary, so each gets its own build. A report
 # and a crash look the same by exit code, so any non-zero exit blocks.
-make clean > /dev/null 2>&1
-make > /dev/null 2>&1
+make clean > /dev/null || broken "make clean failed"
+make > /dev/null || broken "the sanitizer build failed"
 
 asan_tmp="$(mktemp)"
 # UBSan only warns unless told to halt.
@@ -55,8 +55,8 @@ for test_script in tests/recall_test.sh tests/shell_test.sh; do
         > /dev/null 2>> "$asan_tmp" || blocked=1
 done
 
-make clean > /dev/null 2>&1
-make VALGRIND=1 > /dev/null 2>&1
+make clean > /dev/null || broken "make clean failed"
+make VALGRIND=1 > /dev/null || broken "the Valgrind build failed"
 
 valgrind_tmp="$(mktemp)"
 valgrind --leak-check=full --show-leak-kinds=all \
