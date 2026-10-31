@@ -177,9 +177,19 @@ jobs:
           category: gitleaks
 
       - name: Enforce the secret scan
-        if: steps.gitleaks.outputs.code != '0'
+        if: always()
+        env:
+          CODE: ${{ steps.gitleaks.outputs.code }}
         run: |
-          echo "::error::gitleaks found a secret in the history."
+          # gitleaks also exits 1 on a fatal error, which writes no report.
+          if [ "${CODE:-none}" = 0 ]; then
+            exit 0
+          fi
+          if [ "${CODE:-none}" = 1 ] && [ -s gitleaks.sarif ]; then
+            echo "::error::gitleaks found a secret in the history."
+            exit 1
+          fi
+          echo "::error::gitleaks could not run (exit ${CODE:-none}). Nothing was scanned."
           exit 1
 
   security-report:
