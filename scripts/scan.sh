@@ -33,6 +33,9 @@ verdict() {
 }
 
 blocked=0
+asan_tmp=""
+valgrind_tmp=""
+trap 'rm -f "$asan_tmp" "$valgrind_tmp"' EXIT
 
 # Dynamic passes first: make clean also removes .security.
 # Valgrind cannot run an ASan binary, so each gets its own build. A report
