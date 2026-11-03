@@ -62,9 +62,15 @@ expect "C1 strcpy, Flawfinder" "$reports" '^flawfinder 29$'
 expect "C1 strcpy, Semgrep" "$reports" '^semgrep 29$'
 expect "C2 format string, Flawfinder" "$reports" '^flawfinder 39$'
 expect "C2 format string, Semgrep" "$reports" '^semgrep 39$'
-expect "C3 leak, Valgrind" "$(cat .security/valgrind.log)" 'definitely lost'
-expect "C3 leak, LeakSanitizer" "$(cat .security/asan.log)" 'LeakSanitizer'
-expect "C4 uninitialised read, Valgrind" "$(cat .security/valgrind.log)" \
-    'Conditional jump or move depends on uninitialised value'
+# Dynamic reports must point at the defect's line, not just exist.
+expect "C3 leak, Valgrind" \
+    "$(grep -A4 'definitely lost' .security/valgrind.log)" \
+    'record_history \(hardened_shell\.c:32\)'
+expect "C3 leak, LeakSanitizer" \
+    "$(grep -A3 'Direct leak' .security/asan.log)" \
+    'record_history src/hardened_shell\.c:32$'
+expect "C4 uninitialised read, Valgrind" \
+    "$(grep -A1 'Conditional jump or move depends on uninitialised value' .security/valgrind.log)" \
+    'recall_slot \(hardened_shell\.c:50\)'
 
 exit "$failed"
