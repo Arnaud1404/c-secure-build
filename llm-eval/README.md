@@ -1,6 +1,6 @@
 # LLM triage: model comparison
 
-Compares three local models, each with thinking on and off, as triage for this repo's flawfinder and semgrep findings, on a labeled set built from Juliet C/C++ 1.3 and the repo's own code. No model is used to produce the Juliet labels.
+Compares three local models as triage for this repo's flawfinder and semgrep findings, on a labeled set built from Juliet C/C++ 1.3 and the repo's own code. No model is used to produce the Juliet labels. Every model ran with thinking off; Status lists which runs with thinking on finished.
 
 ## Pinned inputs
 
