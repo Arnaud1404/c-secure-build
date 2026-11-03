@@ -1,9 +1,14 @@
 
 CFLAGS = -std=c17 -O2 -g -Wall -Wextra -Werror -pedantic
-CFLAGS += -fPIE -fstack-protector-strong -Wformat -Wformat-security
+CFLAGS += -fPIE -fstack-protector-strong -fstack-clash-protection -Wformat -Wformat-security
 CPPFLAGS = -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -D_FORTIFY_SOURCE=3
 
-LDFLAGS = -pie -Wl,-z,relro,-z,now
+LDFLAGS = -pie -Wl,-z,relro,-z,now,-z,noexecstack
+
+# Control-flow protection (CET) exists only on x86.
+ifeq ($(shell uname -m),x86_64)
+    CFLAGS += -fcf-protection
+endif
 
 ASAN ?= 1
 VALGRIND ?= 0

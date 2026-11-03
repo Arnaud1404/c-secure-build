@@ -148,8 +148,11 @@ Branch protection on `main` requires `build (gcc)`, `build (clang)`, `security g
 | `-D_FORTIFY_SOURCE=3` | Runtime bounds checks on libc calls whose sizes the compiler cannot prove. Off in the ASan build, since the sanitizers do not support it |
 | `-fPIE` / `-pie` | ASLR applies to the binary itself |
 | `-fstack-protector-strong` | Stack canaries on functions with local arrays or address-taken locals |
+| `-fstack-clash-protection` | Large stack allocations probe each page, so they cannot jump over the guard page |
+| `-fcf-protection` | Intel CET: indirect branch targets and shadow-stack markers, x86-64 only |
 | `-Wformat-security` | Warns on a non-literal format string with no arguments |
 | `-Wl,-z,relro,-z,now` | Full RELRO: the GOT is resolved at load time and mapped read-only |
+| `-Wl,-z,noexecstack` | The stack is mapped without execute permission |
 
 `explicit_bzero` wipes the `getline` buffer and the history copies before they are freed, because they hold anything typed at the prompt. Buffers that `getline` released while growing are not wiped.
 
