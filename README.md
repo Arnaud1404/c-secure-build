@@ -166,7 +166,7 @@ The scanners flag many lines that are not bugs. `llm-eval/` measures whether a l
 ```
 src/hardened_shell.c      the target: built, scanned, gated
 src/vuln_shell.c.bak      mirror of v2-vulnerable; not built, not scanned
-tests/                    test input for the dynamic engines, recall and shell behaviour tests
+tests/                    test input for the dynamic engines, behaviour, binary and detection tests
 scripts/scan.sh           the gate
 scripts/collect_security_data.sh  before/after dataset for two refs
 docs/                     security report, annotated copy of the vulnerable shell
