@@ -139,7 +139,7 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 
 Third-party actions are pinned by commit SHA, downloaded tools by SHA-256. The image pins `ubuntu:24.04` by digest and reads the Ubuntu snapshot archive at a fixed date (gcc 13.3, valgrind 3.22).
 
-Branch protection on `main` requires `build (gcc)`, `build (clang)`, `security gate` and `secret scan`, for admins too.
+Branch protection on `main` requires every job above except the release, for admins too.
 
 ## Hardening
 
