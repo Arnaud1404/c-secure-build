@@ -25,6 +25,7 @@ flowchart TD
         G --> H5["fixture mirrors"]
         G --> H6["lint and harness tests"]
         G --> H7["gate detects v2 defects: scan.sh on the v2-vulnerable source"]
+        G --> H8["v* tags only: security-data release, after every job"]
         H3 --> S1["SARIF: flawfinder / semgrep"]
         H4 --> S2["SARIF: gitleaks"]
         S1 --> T["Security tab (3 categories)"]
