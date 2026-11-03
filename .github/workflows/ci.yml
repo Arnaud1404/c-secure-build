@@ -143,6 +143,20 @@ jobs:
             echo "Gate passed." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  detection:
+    name: gate detects v2 defects
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build the toolchain image
+        run: docker build -t c-secure-build-toolchain .
+
+      - name: Run today's gate on the v2-vulnerable source
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" \
+            c-secure-build-toolchain ./tests/detection_test.sh
+
   fixtures:
     name: fixture mirrors
     runs-on: ubuntu-24.04
