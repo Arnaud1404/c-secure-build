@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arnaud1404/c-secure-build/actions/workflows/ci.yml)
 
-A POSIX shell in C with four planted bugs, and a pipeline that finds them and blocks the commit until they are fixed. The shell only gives the scanners something to find. `./scripts/scan.sh` exits 1 at the `v2-vulnerable` tag and 0 at `v2-patched`, which differ only in the four fixes.
+A small command REPL in C for Linux, with four planted bugs, and a pipeline that finds them and blocks the commit until they are fixed. The REPL has no quoting, pipes, redirection, `cd` or exit status, because it only gives the scanners something to find. `./scripts/scan.sh` exits 1 at the `v2-vulnerable` tag and 0 at `v2-patched`, which differ only in the four fixes.
 
 ```mermaid
 flowchart TD
@@ -87,7 +87,7 @@ A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plu
 | vulnerable, annotated | [`docs/vuln_shell_annotated.c`](docs/vuln_shell_annotated.c), the mirror plus a comment above each defect, so its line numbers run 1 to 4 ahead of `docs/` | no |
 | hardened | [`src/hardened_shell.c`](src/hardened_shell.c), started as `v2-patched` and refactored since | yes |
 
-Neither static engine parses `.bak` as C. Renamed to `.c`, `make scan` blocks. `v2-patched` fixes all four defects in 15 insertions and 9 deletions. The shell is not meant to be a secure shell.
+Neither static engine parses `.bak` as C. Renamed to `.c`, `make scan` blocks. `v2-patched` fixes all four defects in 15 insertions and 9 deletions. The binary is `bin/c-secure-shell`, named after the project. Hardened means the four defects are fixed and the flags under Hardening apply, not that the shell is safe to expose.
 
 The fixtures are tags because a branch would be a second head to maintain, and one accidental merge would replant the bugs in `main`.
 
