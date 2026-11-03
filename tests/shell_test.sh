@@ -75,8 +75,8 @@ expect "63 arguments run" "echo$(words 62)" "w$(words 61)"
 expect "64 arguments are refused" "echo$(words 63)" "too many arguments"
 expect_absent "64 arguments do not run truncated" "echo$(words 63)" "w$(words 61)"
 
-# A seekable stdin shares its offset with the child: exit() there rewinds it
-# during stdio cleanup, and the shell then reads its commands a second time.
+# A seekable stdin shares its offset with the child, so a failed exec must
+# leave it where it was or the shell reads its commands twice.
 script="$(mktemp)"
 printf 'no-such-command-xyz\nrecall 0\n' > "$script"
 count="$("$bin" < "$script" 2> /dev/null | grep -c 'no-such-command-xyz')"

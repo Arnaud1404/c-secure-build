@@ -16,7 +16,7 @@ static char* history[HISTORY_SLOTS];
 static int* slot_used;
 static int history_next;
 
-/* calloc, not malloc: recall_slot reads flags for slots never written. */
+/* recall_slot reads the flag of slots never written, so they start at zero. */
 static void history_init(void) {
   slot_used = calloc(HISTORY_SLOTS, sizeof(int));
   if (slot_used == NULL) {
@@ -34,7 +34,6 @@ static void wipe_and_free(char* text) {
 
 /* Must run before parse_input, which tokenizes the buffer in place. */
 static void record_history(const char* input) {
-  /* Taken from the ring, or `history` would only ever show itself. */
   const char* previous = history[(history_next + HISTORY_SLOTS - 1) % HISTORY_SLOTS];
   if (previous != NULL)
     snprintf(last_command, sizeof(last_command), "%s", previous);
@@ -48,11 +47,9 @@ static void record_history(const char* input) {
     exit(EXIT_FAILURE);
   }
   slot_used[slot] = 1;
-  /* A running count would overflow int in a very long session. */
   history_next = (slot + 1) % HISTORY_SLOTS;
 }
 
-/* The argument is user input, so it is never the format. */
 static void show_history(void) { printf("%s\n", last_command); }
 
 static void recall_slot(int slot) {
@@ -68,8 +65,6 @@ static void recall_slot(int slot) {
   }
 }
 
-/* strtol, not atoi: atoi has undefined behavior when the value does not fit
- * in an int, and returns 0 for text that is not a number at all. */
 static bool parse_int(const char* text, int* out) {
   char* end;
   errno = 0;
@@ -90,7 +85,6 @@ static bool parse_input(char* input, char** args) {
   char* current_token = strtok_r(input, " \t", &tokenizer_state);
 
   while (current_token != NULL) {
-    /* Dropping the excess would run a different command than the one typed. */
     if (arg_count == MAX_ARGS - 1)
       return false;
     args[arg_count++] = current_token;
@@ -111,7 +105,7 @@ static void execute_command(char** args) {
     /* flawfinder:ignore */
     execvp(args[0], args);
     perror("execvp failed");
-    /* exit() would run stdio cleanup here and rewind the stdin offset it shares with the shell. */
+    /* exit() would flush stdio and move the stdin offset shared with the parent. */
     _exit(127);
   } else if (pid == -1) {
     /* Often transient (EAGAIN), so it should not end the session. */

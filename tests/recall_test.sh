@@ -43,7 +43,7 @@ expect "recall -1" "recall: slot out of range"
 expect "recall abc" "recall: slot must be a number"
 expect "recall 2x" "recall: slot must be a number"
 expect "recall 0x1" "recall: slot must be a number"
-# Fits in a long but not in an int: atoi had undefined behavior here.
+# Fits in a long but not in an int.
 expect "recall 4294967296" "recall: slot must be a number"
 # Does not fit in a long: strtol sets ERANGE.
 expect "recall 99999999999999999999999" "recall: slot must be a number"
