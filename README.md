@@ -170,7 +170,6 @@ The scanners flag many lines that are not bugs. `llm-eval/` measures whether a l
 - The pre-commit hook scans the working tree, not the staged content, so unstaged fixes can make a bad commit pass. Anyone can also pass `--no-verify`. CI is the authority.
 - The LLM filter is not wired into the gate, and its set is synthetic Juliet code.
 - `requirements.txt` pins the scanners but not their dependencies, and the release job runs the collector on the runner, not in the image.
-- Automated blocking is part of what the Cyber Resilience Act and NIS2 expect, but nothing here is mapped to articles and there is no SBOM or build provenance, so this is no compliance claim.
 
 ## Layout
 
