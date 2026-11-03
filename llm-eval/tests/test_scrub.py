@@ -61,3 +61,11 @@ def test_committed_prompts_carry_no_label_word(name: str) -> None:
     for item in load(name):
         user = run_eval.build_messages(item)[1]["content"].replace("Flawfinder", "")
         assert run_eval.LEAK_WORDS.search(user) is None, item["id"]
+
+
+def test_worked_examples_carry_no_label_word() -> None:
+    # They are pasted into every system prompt, after the instructions.
+    examples = json.loads((ROOT / "harness" / "fewshot.json").read_text())
+    for ex in examples:
+        shown = (ex["user"] + json.dumps(ex["answer"])).replace("Flawfinder", "")
+        assert run_eval.LEAK_WORDS.search(shown) is None, ex["id"]
