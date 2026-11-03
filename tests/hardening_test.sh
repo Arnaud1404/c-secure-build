@@ -2,8 +2,8 @@
 # Checks that the linked binary carries the protections listed in the README.
 # Some of them (BIND_NOW, CET) are also Ubuntu toolchain defaults, so a pass
 # says what the binary has, not which flag put it there.
-# Build it with `make ASAN=0` first: the ASan runtime can drop the CET marking,
-# and the sanitizer build has no FORTIFY.
+# Build it with `make ASAN=0` first: the default build adds the sanitizers and
+# drops FORTIFY, so it is not the hardened binary.
 # Usage: tests/hardening_test.sh BINARY
 # Exits 1 if a protection is missing.
 set -u
