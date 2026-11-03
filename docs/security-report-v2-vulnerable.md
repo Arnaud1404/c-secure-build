@@ -12,8 +12,8 @@ An earlier fixture planted two defects, and both static engines caught both of t
 
 | Ref | Commit | Gate (`scan.sh`) | Flawfinder block pass | Semgrep block pass | Valgrind | ASan run |
 |---|---|---|---|---|---|---|
-| `v2-vulnerable` | `319ddf6` | BLOCKED, exit 1 | exit 1, blocks | exit 1, blocks | blocks (exit 7) | leak, exit 1 |
-| `v2-patched` | `40b8ce7` | scan clean, exit 0 | exit 0 | exit 0 | clean, exit 0 | clean, exit 0 |
+| `v2-vulnerable` | `7649d35` | BLOCKED, exit 1 | exit 1, blocks | exit 1, blocks | blocks (exit 7) | leak, exit 1 |
+| `v2-patched` | `ccecdf4` | scan clean, exit 0 | exit 0 | exit 0 | clean, exit 0 | clean, exit 0 |
 
 Valgrind exits 7 here because the collector passes `--error-exitcode=7`; `scripts/scan.sh` passes 1 and blocks on any non-zero. Both numbers mean the same verdict.
 
@@ -245,12 +245,12 @@ BLOCKED: see .security/*.sarif and .security/valgrind.log
 ==59651== 24 bytes in 3 blocks are definitely lost in loss record 1 of 2
 BLOCKED: the security gate found something. See .security/*.sarif.
 $ git log --oneline -1
-e21b852 fix: assert the gate blocks at vulnerable tags instead of failing open   # nothing landed
+befb0ab fix: assert the gate blocks at vulnerable tags instead of failing open   # nothing landed
 ```
 
 The log the hook prints is Valgrind's, and it names C3 and C4, which neither static engine sees. C1 and C2 blocked in the same run, through the two SARIF block passes.
 
-That hook ran the three-engine gate. Since `3279ea5`, `scripts/scan.sh` also runs the ASan build on the test input and blocks on any report, so the same commit today would also print LeakSanitizer's report of C3 above Valgrind's log.
+That hook ran the three-engine gate. Since `61f2dec`, `scripts/scan.sh` also runs the ASan build on the test input and blocks on any report, so the same commit today would also print LeakSanitizer's report of C3 above Valgrind's log.
 
 ## Reproduce
 
