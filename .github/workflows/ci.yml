@@ -33,15 +33,12 @@ jobs:
           "$CC" --version | head -1
           make --version | head -1
 
-      - name: Build with hardening flags and sanitizers
-        run: make
-
-      - name: Check the protections in the linked binary
+      - name: Build without sanitizers and check the linked binary
         run: |
-          make clean
           make ASAN=0
           ./tests/hardening_test.sh bin/c-secure-shell
 
+      # Rebuilds with ASan and UBSan before running the tests.
       - name: Run the tests under ASan and UBSan
         run: make test
 
