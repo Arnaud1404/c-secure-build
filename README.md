@@ -161,7 +161,7 @@ Branch protection on `main` requires `build (gcc)`, `build (clang)`, `security g
 
 ## LLM triage (`llm-eval/`)
 
-The scanners flag many lines that are not bugs. `llm-eval/` measures whether a local model can sort them, on 117 Juliet findings (50 real, 67 false positives) whose labels no model produced. With thinking on, gemma-4-E4B reaches 85.0% balanced accuracy against a 65.6% naive Bayes floor: as a filter it removes 55 of the 67 false positives and wrongly dismisses 6 of the 50 real bugs. Claude, as a reference, reaches 98.3%. Details in [`llm-eval/README.md`](llm-eval/README.md), numbers in [`llm-eval/results_v2/report.md`](llm-eval/results_v2/report.md).
+The scanners flag many lines that are not bugs. `llm-eval/` measures whether a local model can sort them, on 117 Juliet findings (50 real, 67 false positives) whose labels no model produced. With thinking on, gemma-4-E4B reaches 85.0% balanced accuracy against a 65.6% naive Bayes floor: as a filter it removes 55 of the 67 false positives and wrongly dismisses 6 of the 50 real bugs, a rate whose 95% interval runs from 6 to 24%. Claude, as a reference, reaches 98.3%. These figures are optimistic for two reasons. The prompt was rewritten after a first round of runs on the same 117 items ([`llm-eval/results_v2/prompt1/`](llm-eval/results_v2/prompt1/report.md), where Claude scored 92.0%), and gemma-4-E4B is the best of the four local configurations scored on them. Details in [`llm-eval/README.md`](llm-eval/README.md), numbers in [`llm-eval/results_v2/report.md`](llm-eval/results_v2/report.md).
 
 ## Limits
 
