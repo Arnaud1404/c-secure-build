@@ -102,6 +102,8 @@ static void execute_command(char** args) {
   pid_t pid = fork();
 
   if (pid == 0) {
+    /* Flawfinder rates every exec call level 4 (CWE-78), even with a constant
+     * program. Running the command the user typed is what the shell is for. */
     /* flawfinder:ignore */
     execvp(args[0], args);
     perror("execvp failed");

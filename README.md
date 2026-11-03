@@ -95,6 +95,8 @@ Each static engine runs twice. The first pass writes `.security/*.sarif` with ev
 
 [`.semgrep/local/banned-apis.yaml`](.semgrep/local/banned-apis.yaml) raises `atoi`/`atol`/`atoll`/`atof`, `strtok` and `tmpnam`/`tempnam`/`mktemp` to `ERROR`, on top of what the vendored pack blocks. `semgrep --test .semgrep/local/` checks the rules.
 
+One finding is suppressed: the `execvp` in `src/hardened_shell.c` carries a `flawfinder:ignore` comment, because Flawfinder rates every exec call level 4 and running the typed command is the shell's job. Without it the gate would block the hardened source. There is no other suppression in `src/`.
+
 ### Which engine sees which defect
 
 All four compile cleanly under `-Wall -Wextra -Werror -pedantic -Wformat-security` on gcc and clang, so they all reach the scanners.
