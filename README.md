@@ -128,7 +128,7 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 
 | Job | What it does |
 |---|---|
-| `build (gcc)`, `build (clang)` | Hardened build under both compilers |
+| `build (gcc)`, `build (clang)` | Hardened build under both compilers, `tests/hardening_test.sh` on the linked binary (PIE, full RELRO, NX stack, CET), then `make test` |
 | `security gate` | `scripts/scan.sh` in the pinned image, then one SARIF upload per engine. A `*-vulnerable` tag that passes fails the job |
 | `secret scan` | `gitleaks` over the full history |
 | `gate detects v2 defects` | Copies `src/vuln_shell.c.bak` over the hardened source, runs today's `scan.sh` in the image, and checks that each of C1 to C4 is reported by the engines the matrix credits with it (`tests/detection_test.sh`) |

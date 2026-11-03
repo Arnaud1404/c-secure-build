@@ -36,6 +36,15 @@ jobs:
       - name: Build with hardening flags and sanitizers
         run: make
 
+      - name: Check the protections in the linked binary
+        run: |
+          make clean
+          make ASAN=0
+          ./tests/hardening_test.sh bin/c-secure-shell
+
+      - name: Run the tests under ASan and UBSan
+        run: make test
+
   lint:
     name: lint and harness tests
     runs-on: ubuntu-24.04
