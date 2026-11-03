@@ -79,7 +79,7 @@ A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plu
 
 Only [`src/hardened_shell.c`](src/hardened_shell.c) is built and scanned. It started as `v2-patched` and has been refactored since. [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak) is a byte-for-byte mirror of `v2-vulnerable`, kept so the line numbers in `docs/` resolve at `HEAD`, and [`docs/vuln_shell_annotated.c`](docs/vuln_shell_annotated.c) is that mirror with a comment above each defect, which puts its line numbers 1 to 4 ahead of `docs/`.
 
-Neither static engine parses `.bak` as C. Copied over the hardened source, it makes `scan.sh` block, and CI checks that on every push. `v2-patched` fixes all four defects in 15 insertions and 9 deletions. The binary is `bin/c-secure-shell`, named after the project. Hardened means the four defects are fixed and the flags under Hardening apply, not that the shell is safe to expose.
+Neither static engine parses `.bak` as C. Copying the mirror over the hardened source makes `scan.sh` block, and CI checks that on every push. `v2-patched` fixes all four defects in 15 insertions and 9 deletions. The binary is `bin/c-secure-shell`, named after the project. Hardened means the four defects are fixed and the flags under Hardening apply, not that the shell is safe to expose.
 
 The fixtures are tags because a branch would be a second head to maintain, and one accidental merge would replant the bugs in `main`.
 
