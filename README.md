@@ -145,7 +145,7 @@ Branch protection on `main` requires `build (gcc)`, `build (clang)`, `security g
 | Flag | Why |
 |---|---|
 | `-Wall -Wextra -Werror -pedantic` | Warnings are build failures, strict ISO C17 |
-| `-D_FORTIFY_SOURCE=3` | Runtime bounds checks on libc calls whose sizes the compiler cannot prove |
+| `-D_FORTIFY_SOURCE=3` | Runtime bounds checks on libc calls whose sizes the compiler cannot prove. Off in the ASan build, since the sanitizers do not support it |
 | `-fPIE` / `-pie` | ASLR applies to the binary itself |
 | `-fstack-protector-strong` | Stack canaries on functions with local arrays or address-taken locals |
 | `-Wformat-security` | Warns on a non-literal format string with no arguments |

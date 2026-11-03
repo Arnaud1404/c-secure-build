@@ -12,7 +12,10 @@ ifeq ($(VALGRIND),1)
     ASAN := 0
 endif
 
+# The sanitizers do not support FORTIFY's checked libc wrappers
+# (google/sanitizers#247).
 ifeq ($(ASAN),1)
+    CPPFLAGS += -U_FORTIFY_SOURCE
     CFLAGS  += -fsanitize=address,undefined
     LDFLAGS += -fsanitize=address,undefined
 endif
