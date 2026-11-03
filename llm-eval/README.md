@@ -47,7 +47,7 @@ llm-eval/harness/run_nothink.sh
 
 `serve.sh` runs `llama-server -m MODEL -ngl 99 -c 16384 --jinja -fa on -ctk q8_0 -ctv q8_0 -np 1 --cache-ram 0 --reasoning-format deepseek -lv 4 --port 8080` and exits non-zero unless the log shows every layer offloaded to the GPU. `-lv 4` only raises log verbosity, so the offload line is printed.
 
-llama-server keeps earlier prompt states in RAM (`--cache-ram`, 8192 MiB by default). With 7.6 GiB, WSL's default of half the host RAM, the kernel killed the 12B server, so `serve.sh` now disables that cache; it only saved re-reading the shared system prompt, which the slot keeps anyway. The runs here also used `memory=12GB` and `swap=8GB` in `%UserProfile%\.wslconfig`. `run_eval.py` stops on a failed request instead of recording it, so rerunning resumes where it stopped.
+`--cache-ram 0` turns off llama-server's RAM cache of earlier prompts (8192 MiB by default), which ran the 12B server out of memory at 7.6 GiB; the slot already keeps the shared system prompt. The runs used a WSL2 VM with 12 GB of memory and 8 GB of swap. `run_eval.py` stops on a failed request instead of recording it, so rerunning resumes where it stopped.
 
 `report.md` scores a missing or invalid answer as wrong. Besides the hit rates it gives balanced accuracy, median and total time, and median output tokens, then a filter view where only an FP verdict removes a finding (with 95% Wilson intervals), split by whether the flagged function holds both source and sink.
 
