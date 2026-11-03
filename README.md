@@ -69,23 +69,13 @@ Each tag carries its own copy of the gate, so this is the verdict that tag got a
 
 ### Exit codes of `scripts/scan.sh`
 
-| Exit | Meaning |
-|---|---|
-| 0 | Nothing blocked |
-| 1 | A finding blocked |
-| 2 | Nothing was scanned: a missing scanner, a failed build, an engine that wrote no report, or a block pass that crashed |
-
-The hook and CI call the script directly, because Make reports every recipe failure as its own exit 2 and would turn a finding into what looks like a broken toolchain.
+Exit 0 means nothing blocked and exit 1 means a finding blocked. Exit 2 means nothing was scanned, because a scanner is missing, the build failed, an engine wrote no report or a block pass crashed. The hook and CI call the script directly, because Make reports every recipe failure as its own exit 2 and would turn a finding into what looks like a broken toolchain.
 
 ## The target
 
 A REPL that reads a line, splits it on whitespace, forks and calls `execvp`, plus a `history`/`recall` feature that carries the planted defects.
 
-| Version | File | Built and scanned |
-|---|---|---|
-| vulnerable | [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak), byte-for-byte mirror of `v2-vulnerable`, so the line numbers in `docs/` resolve at `HEAD` | no |
-| vulnerable, annotated | [`docs/vuln_shell_annotated.c`](docs/vuln_shell_annotated.c), the mirror plus a comment above each defect, so its line numbers run 1 to 4 ahead of `docs/` | no |
-| hardened | [`src/hardened_shell.c`](src/hardened_shell.c), started as `v2-patched` and refactored since | yes |
+Only [`src/hardened_shell.c`](src/hardened_shell.c) is built and scanned. It started as `v2-patched` and has been refactored since. [`src/vuln_shell.c.bak`](src/vuln_shell.c.bak) is a byte-for-byte mirror of `v2-vulnerable`, kept so the line numbers in `docs/` resolve at `HEAD`, and [`docs/vuln_shell_annotated.c`](docs/vuln_shell_annotated.c) is that mirror with a comment above each defect, which puts its line numbers 1 to 4 ahead of `docs/`.
 
 Neither static engine parses `.bak` as C. Renamed to `.c`, `make scan` blocks. `v2-patched` fixes all four defects in 15 insertions and 9 deletions. The binary is `bin/c-secure-shell`, named after the project. Hardened means the four defects are fixed and the flags under Hardening apply, not that the shell is safe to expose.
 
