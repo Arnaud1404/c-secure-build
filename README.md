@@ -134,7 +134,7 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 | `gate detects v2 defects` | Copies `src/vuln_shell.c.bak` over the hardened source, runs today's `scan.sh` in the image, and checks that each of C1 to C4 is reported by the engines the matrix credits with it (`tests/detection_test.sh`) |
 | `fixture mirrors` | Asserts `src/vuln_shell.c.bak` still matches `v2-vulnerable`, and `docs/vuln_shell_annotated.c` differs from it only by its comments |
 | `lint and harness tests` | shellcheck, ruff, and pytest on `llm-eval/tests` |
-| `security-data release` | On `v*` tags, after the gate: attaches `security-data-<tag>.zip` to a release |
+| `security-data release` | On `v*` tags, after every other job passes: attaches `security-data-<tag>.zip` to a release |
 
 Third-party actions are pinned by commit SHA, downloaded tools by SHA-256. The image pins `ubuntu:24.04` by digest and reads the Ubuntu snapshot archive at a fixed date (gcc 13.3, valgrind 3.22).
 
