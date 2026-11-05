@@ -69,10 +69,10 @@ jobs:
         run: shellcheck scripts/*.sh tests/*.sh .githooks/pre-commit llm-eval/harness/*.sh
 
       - name: Ruff
-        run: ruff check llm-eval
+        run: ruff check llm-eval scripts tests
 
       - name: Harness tests
-        run: python -m pytest -q llm-eval/tests
+        run: python -m pytest -q llm-eval/tests tests
 
   scan:
     name: security gate
