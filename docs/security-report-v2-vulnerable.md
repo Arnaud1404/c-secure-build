@@ -109,6 +109,26 @@ Both compilers build this file cleanly under `-Wall -Wextra -Werror -pedantic -W
 - C4 survives `-Wmaybe-uninitialized` because the allocation and the read sit behind a file-scope pointer. An earlier draft put `malloc` and the read in one function; GCC 14 inlined it and rejected the build with `‘p[3]’ may be used uninitialized`. Routing through a global is what GCC cannot follow, and is also how the bug occurs in real code.
 - C3 is not a compiler diagnostic in any configuration. Reachability of a heap block at exit is a whole-program property.
 
+## Severity
+
+`scripts/cvss.py` computes a CVSS 3.1 base score from a vector. Its tests check the formula against scores NVD publishes. The vectors below are my reading of each defect, so they are judgements and not measurements.
+
+All four share `AV:L/AC:L/PR:N/UI:R/S:U`. The shell reads its commands from stdin, so the attacker is whoever writes that input, and a user has to run the shell on it. The vectors rate the source. On the hardened build, `_FORTIFY_SOURCE=3` turns C1 into an abort, which would leave availability alone.
+
+| Defect | C / I / A | Base score | Why |
+|---|---|---|---|
+| C1 | H / H / H | 7.8 High | A write past a global can overwrite whatever the linker placed after it, and code execution cannot be ruled out. |
+| C2 | H / H / H | 7.8 High | `%p` and `%s` read memory and `%n` writes it. |
+| C3 | N / N / L | 3.3 Low | Each command past the fourth loses one string, so memory runs out only in a very long session. |
+| C4 | N / N / N | 0.0 None | `recall_slot` also checks `history[slot]`, a zeroed static array, so a garbage flag can only report an unwritten slot as empty, which it is. |
+
+The gate still blocks C4, since reading uninitialised memory is undefined behaviour whatever its score. The gate answers yes or no for every finding, and a score would only order them, so `scan.sh` does not call the calculator.
+
+```bash
+python scripts/cvss.py 'CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H' \
+                       'CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:L'
+```
+
 ## What each engine caught at `v2-vulnerable`
 
 23 findings total: flawfinder 10, semgrep 13. Four are at `error`, and those four are what block.

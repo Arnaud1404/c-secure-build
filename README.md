@@ -123,7 +123,7 @@ All four compile cleanly under `-Wall -Wextra -Werror -pedantic -Wformat-securit
 | Findings, total | 23 | 23 |
 | Findings at `error` | 4 | 0 |
 
-The total stays at 23 because the gate reads severity, not count: most are `note`-level hits on fixed-size arrays and audit-candidate calls. Full writeup: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md). `scripts/collect_security_data.sh` rebuilds this dataset for any two refs, with today's rules, so `v2-patched`, which still calls `atoi`, now blocks there.
+The total stays at 23 because the gate reads severity, not count: most are `note`-level hits on fixed-size arrays and audit-candidate calls. Full writeup, with a CVSS 3.1 base score per defect: [`docs/security-report-v2-vulnerable.md`](docs/security-report-v2-vulnerable.md). `scripts/collect_security_data.sh` rebuilds this dataset for any two refs, with today's rules, so `v2-patched`, which still calls `atoi`, now blocks there.
 
 ## CI
 
@@ -177,6 +177,7 @@ src/vuln_shell.c.bak      mirror of v2-vulnerable; not built, not scanned
 tests/                    test input for the dynamic engines, behaviour, binary and detection tests
 scripts/scan.sh           the gate
 scripts/collect_security_data.sh  before/after dataset for two refs
+scripts/cvss.py           CVSS 3.1 base score from a vector; not called by the gate
 docs/                     security report, annotated copy of the vulnerable shell
 .semgrep/rules/           vendored pack and NOTICE
 .semgrep/local/           this project's ban list and its rule tests
