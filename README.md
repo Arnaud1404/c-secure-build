@@ -160,14 +160,13 @@ Branch protection on `main` requires every job above except the release, for adm
 
 ## Static analysers (`analyzers/`)
 
-A second image, kept out of the gate because Infer and ESBMC add about 2 GB, holds the analysers for a comparison on the CASTLE benchmark: flawfinder 2.0.20, semgrep 1.173.0, cppcheck 2.13.0, the Clang 18.1.3 static analyzer, GCC 13.3 `-fanalyzer` with the taint checker, Infer 1.3.0 (Pulse, Liveness, Starvation), ESBMC 8.8 and Frama-C 25 EVA. Infer and ESBMC are release archives checked by SHA-256, the rest come from the same Ubuntu snapshot as the gate.
+A second image holds the analysers for a comparison on the CASTLE benchmark, each at its latest stable release: flawfinder, Semgrep CE, cppcheck 2.22, the Clang 23 static analyzer, GCC 16 `-fanalyzer`, Infer 1.3 (Pulse, Liveness, Starvation), ESBMC 8.8 and Frama-C 33 EVA. It is kept out of the gate, which stays on Ubuntu 24.04. `analyzers/run.sh` runs them on one file with CASTLE's flags where CASTLE ran the tool, and keeps the raw reports. Versions, flags and their sources are in [`analyzers/README.md`](analyzers/README.md).
 
 ```bash
-make docker-analyzers                                   # builds the image, runs analyzers/test.sh
-docker run --rm -v "$PWD:/src" c-secure-build-analyzers ./analyzers/run.sh FILE.c OUT/
+make docker-analyzers         # builds the image, runs analyzers/test.sh
 ```
 
-`run.sh` keeps each tool's raw report (SARIF where the tool writes it, cppcheck XML, Infer JSON, ESBMC and EVA text) and its exit code in `OUT/status`. It does not parse or score findings. On `analyzers/samples/heap_oob.c`, a heap write one past the end, ESBMC, EVA and cppcheck report line 12, semgrep flags only the `malloc` on line 6, and flawfinder, Clang, GCC and Infer report nothing.
+`agent-eval/` lets a coding-agent CLI call the analysers as a tool. So far there is one smoke test, for the Antigravity CLI. See [`agent-eval/README.md`](agent-eval/README.md).
 
 ## LLM triage (`llm-eval/`)
 
@@ -197,6 +196,7 @@ docs/                     security report, annotated copy of the vulnerable shel
 .github/workflows/ci.yml  jobs listed above
 Dockerfile                pinned toolchain image
 analyzers/                second image with the static analysers, run.sh, its test and sample
+agent-eval/               agent CLI setup: tool wrappers, agy settings, smoke test
 llm-eval/                 LLM triage benchmark, results and harness tests
 ```
 
