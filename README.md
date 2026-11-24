@@ -133,6 +133,7 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 | `security gate` | `scripts/scan.sh` in the pinned image, then one SARIF upload per engine. A `*-vulnerable` tag that passes fails the job |
 | `secret scan` | `gitleaks` over the full history |
 | `gate detects v2 defects` | Copies `src/vuln_shell.c.bak` over the hardened source, runs today's `scan.sh` in the image, and checks that each of C1 to C4 is reported by the engines the matrix credits with it (`tests/detection_test.sh`) |
+| `analyzer image` | Builds `analyzers/Dockerfile`, prints each tool's version, runs `analyzers/test.sh` |
 | `fixture mirrors` | Asserts `src/vuln_shell.c.bak` still matches `v2-vulnerable`, and `docs/vuln_shell_annotated.c` differs from it only by its comments |
 | `lint and harness tests` | shellcheck, ruff, and pytest on `llm-eval/tests` and `tests/test_cvss.py` |
 | `security-data release` | On `v*` tags, after every other job passes: attaches `security-data-<tag>.zip` to a release |
@@ -156,6 +157,17 @@ Branch protection on `main` requires every job above except the release, for adm
 | `-Wl,-z,noexecstack` | The stack is mapped without execute permission |
 
 `explicit_bzero` wipes the `getline` buffer and the history copies before they are freed, because they hold anything typed at the prompt. Buffers that `getline` released while growing are not wiped.
+
+## Static analysers (`analyzers/`)
+
+A second image, kept out of the gate because Infer and ESBMC add about 2 GB, holds the analysers for a comparison on the CASTLE benchmark: flawfinder 2.0.20, semgrep 1.173.0, cppcheck 2.13.0, the Clang 18.1.3 static analyzer, GCC 13.3 `-fanalyzer` with the taint checker, Infer 1.3.0 (Pulse, Liveness, Starvation), ESBMC 8.8 and Frama-C 25 EVA. Infer and ESBMC are release archives checked by SHA-256, the rest come from the same Ubuntu snapshot as the gate.
+
+```bash
+make docker-analyzers                                   # builds the image, runs analyzers/test.sh
+docker run --rm -v "$PWD:/src" c-secure-build-analyzers ./analyzers/run.sh FILE.c OUT/
+```
+
+`run.sh` keeps each tool's raw report (SARIF where the tool writes it, cppcheck XML, Infer JSON, ESBMC and EVA text) and its exit code in `OUT/status`. It does not parse or score findings. On `analyzers/samples/heap_oob.c`, a heap write one past the end, ESBMC, EVA and cppcheck report line 12, semgrep flags only the `malloc` on line 6, and flawfinder, Clang, GCC and Infer report nothing.
 
 ## LLM triage (`llm-eval/`)
 
@@ -184,6 +196,7 @@ docs/                     security report, annotated copy of the vulnerable shel
 .githooks/pre-commit      installed by make hooks
 .github/workflows/ci.yml  jobs listed above
 Dockerfile                pinned toolchain image
+analyzers/                second image with the static analysers, run.sh, its test and sample
 llm-eval/                 LLM triage benchmark, results and harness tests
 ```
 
