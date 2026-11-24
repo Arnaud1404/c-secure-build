@@ -66,7 +66,7 @@ jobs:
           rm -f shellcheck.tar.xz
 
       - name: Shellcheck
-        run: shellcheck scripts/*.sh tests/*.sh analyzers/*.sh .githooks/pre-commit llm-eval/harness/*.sh
+        run: shellcheck scripts/*.sh tests/*.sh analyzers/*.sh agent-eval/*.sh agent-eval/tools/*.sh .githooks/pre-commit llm-eval/harness/*.sh
 
       - name: Ruff
         run: ruff check llm-eval scripts tests
