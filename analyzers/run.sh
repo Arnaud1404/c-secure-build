@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # the sh -c bodies are single-quoted on purpose
 # Runs every static analyser of the image on one C file and keeps each raw
 # report under OUTDIR/<tool>.*, with the tool's exit code in OUTDIR/status.
 # Parsing and scoring happen later, so nothing here judges a finding.
