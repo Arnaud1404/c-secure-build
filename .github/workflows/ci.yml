@@ -66,7 +66,7 @@ jobs:
           rm -f shellcheck.tar.xz
 
       - name: Shellcheck
-        run: shellcheck scripts/*.sh tests/*.sh .githooks/pre-commit llm-eval/harness/*.sh
+        run: shellcheck scripts/*.sh tests/*.sh analyzers/*.sh .githooks/pre-commit llm-eval/harness/*.sh
 
       - name: Ruff
         run: ruff check llm-eval scripts tests
@@ -162,6 +162,19 @@ jobs:
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" \
             c-secure-build-toolchain ./tests/detection_test.sh
+
+  analyzers:
+    name: analyzer image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build the analyzer image
+        run: docker build -f analyzers/Dockerfile -t c-secure-build-analyzers .
+
+      - name: Run every analyzer on the sample
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src"             c-secure-build-analyzers sh -c './analyzers/versions.sh && ./analyzers/test.sh'
 
   fixtures:
     name: fixture mirrors
