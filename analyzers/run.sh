@@ -2,27 +2,34 @@
 # shellcheck disable=SC2016  # the sh -c bodies are single-quoted on purpose
 # Runs every static analyser of the image on one C file and keeps each raw
 # report under OUTDIR/<tool>.*, with the tool's exit code in OUTDIR/status.
+# Flags follow the CASTLE wrappers (CASTLE-Source, wrappers/*/run.py) where
+# CASTLE ran the tool; analyzers/README.md lists each choice and its source.
 # Parsing and scoring happen later, so nothing here judges a finding.
-# Usage: analyzers/run.sh FILE.c OUTDIR   (inside c-secure-build-analyzers)
+# Usage: analyzers/run.sh FILE.c OUTDIR [COMPILE]   (inside c-secure-build-analyzers)
+#   COMPILE is the program's build command, as in CASTLE's "compile" field,
+#   naming the file by its basename. Default: gcc NAME.c -o NAME.
 # Exits 2 if a tool is missing or crashed or timed out, 0 otherwise.
 set -u
 
-if [ "$#" -ne 2 ] || [ ! -f "$1" ]; then
-    echo "usage: $0 FILE.c OUTDIR" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ] || [ ! -f "$1" ]; then
+    echo "usage: $0 FILE.c OUTDIR [COMPILE]" >&2
     exit 2
 fi
 src="$(realpath "$1")" || exit 2
+base="$(basename "$src")"
+compile="${3:-gcc $base -o ${base%.c}}"
 out="$2"
 mkdir -p "$out" || exit 2
 out="$(realpath "$out")" || exit 2
 rules="$(realpath "$(dirname "$0")/../.semgrep")" || exit 2
 
-# Per tool, in seconds. ESBMC and EVA are the slow ones on CASTLE-sized files.
+# Per tool, in seconds. ESBMC has its own 10 s budget inside this one.
 limit="${ANALYZER_TIMEOUT:-120}"
 
 work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 : > "$out/status" || exit 2
+printf '%s\n' "$compile" > "$out/compile" || exit 2
 failed=0
 
 # Exit codes that mean "found something" differ per tool, so only a missing
@@ -35,39 +42,48 @@ record() {
     fi
 }
 
+# Each tool gets a fresh directory holding only the source, so build outputs
+# and tool caches of one run cannot reach the next.
 run() {
     local name="$1"
     shift
-    local code=0
-    (cd "$work" && timeout "$limit" "$@") > "$out/$name.log" 2>&1 || code=$?
+    local code=0 dir="$work/$name"
+    if ! mkdir "$dir" || ! cp "$src" "$dir/$base"; then
+        record "$name" 127
+        return
+    fi
+    (cd "$dir" && timeout "$limit" "$@") > "$out/$name.log" 2>&1 || code=$?
     record "$name" "$code"
 }
 
-run flawfinder sh -c 'flawfinder --sarif --quiet "$1" > "$2"' _ "$src" "$out/flawfinder.sarif"
+run flawfinder sh -c 'flawfinder --sarif --quiet "$1" > "$2"' _ "$base" "$out/flawfinder.sarif"
 
+# CASTLE ran Semgrep Pro with --config auto, which needs an account and the
+# registry. This is Semgrep CE with the repository's rules, offline.
 run semgrep semgrep --metrics=off --config "$rules/rules/" --config "$rules/local/" \
-    --sarif --output "$out/semgrep.sarif" "$src"
+    --sarif --output "$out/semgrep.sarif" "$base"
 
-run cppcheck cppcheck --enable=warning,portability --inconclusive --xml \
-    --output-file="$out/cppcheck.xml" "$src"
+run cppcheck cppcheck --enable=all --language=c --quiet \
+    '--template={severity},{line},{cwe},{message}' --output-file="$out/cppcheck.txt" "$base"
 
-run clang-sa clang --analyze --analyzer-output sarif -o "$out/clang-sa.sarif" "$src"
+run clang-sa sh -c 'scan-build --keep-going sh -c "$1"' _ "$compile"
 
-# -fanalyzer only reports; -c and /dev/null keep it from linking.
-run gcc-fanalyzer sh -c 'gcc -std=c17 -fanalyzer -fanalyzer-checker=taint \
-    -fdiagnostics-format=sarif-stderr -c "$1" -o /dev/null 2> "$2"' \
-    _ "$src" "$out/gcc-fanalyzer.sarif"
+run gcc-fanalyzer sh -c '$1 -Wall -Wextra -fanalyzer 2> "$2"' _ "$compile" "$out/gcc-fanalyzer.txt"
 
-# Starvation only matters for programs with locks, but costs little to run.
-run infer infer run --no-progress-bar --results-dir "$work/infer-out" \
-    --pulse --liveness --starvation -- clang -c "$src" -o /dev/null
-cp "$work/infer-out/report.json" "$out/infer.json" 2>/dev/null \
-    || { echo "infer wrote no report.json" >&2; failed=1; }
+# Not in CASTLE: the taint checker is off by default in GCC.
+run gcc-fanalyzer-taint sh -c '$1 -Wall -Wextra -fanalyzer -fanalyzer-checker=taint 2> "$2"' \
+    _ "$compile" "$out/gcc-fanalyzer-taint.txt"
 
-# Bounded: loops unrolled 10 times, deeper paths go unchecked.
-run esbmc esbmc "$src" --unwind 10 --no-unwinding-assertions \
-    --memory-leak-check --overflow-check --multi-property
+# Not in CASTLE. Starvation only matters for programs with locks. -c stops
+# at the object file: Infer's link step looks for objects its capture never wrote.
+run infer sh -c 'infer run --no-progress-bar --results-dir infer-out \
+    --pulse --liveness --starvation -- $1 -c && cp infer-out/report.json "$2"' \
+    _ "$compile" "$out/infer.json"
 
-run frama-c-eva frama-c -eva -eva-no-show-progress "$src" -then -report
+run esbmc esbmc --overflow --no-unwinding-assertions --memory-leak-check --timeout 10 \
+    --multi-property "$base" --show-stacktrace
+
+# Not in CASTLE.
+run frama-c-eva frama-c -eva -eva-no-show-progress "$base" -then -report
 
 exit "$failed"
