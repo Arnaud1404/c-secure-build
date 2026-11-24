@@ -1,0 +1,3 @@
+# Used instead of ../.dockerignore when building analyzers/Dockerfile.
+*
+!analyzers/requirements.txt
