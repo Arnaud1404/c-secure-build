@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "command(bash tools/run_analyzers.sh)"
+    ]
+  }
+}
