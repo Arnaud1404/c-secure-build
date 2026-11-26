@@ -38,14 +38,13 @@ OBJ = $(OBJ_DIR)/hardened_shell.o
 # Rootless podman maps uids itself; --user would leave files it cannot own.
 CONTAINER ?= docker
 IMAGE = c-secure-build-toolchain
-ANALYZERS_IMAGE = c-secure-build-analyzers
 ifeq ($(CONTAINER),podman)
     RUN_AS = --userns=keep-id
 else
     RUN_AS = --user $(shell id -u):$(shell id -g)
 endif
 
-.PHONY: all clean test scan hooks image docker-scan analyzers-image docker-analyzers
+.PHONY: all clean test scan hooks image docker-scan
 
 all: $(TARGET)
 
@@ -75,12 +74,6 @@ image:
 
 docker-scan: image
 	$(CONTAINER) run --rm $(RUN_AS) -v "$(CURDIR):/src" $(IMAGE)
-
-analyzers-image:
-	$(CONTAINER) build -f analyzers/Dockerfile -t $(ANALYZERS_IMAGE) .
-
-docker-analyzers: analyzers-image
-	$(CONTAINER) run --rm $(RUN_AS) -v "$(CURDIR):/src" $(ANALYZERS_IMAGE) ./analyzers/test.sh
 
 hooks:
 	git config core.hooksPath $(HOOK_DIR)

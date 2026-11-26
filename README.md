@@ -133,7 +133,6 @@ The total stays at 23 because the gate reads severity, not count: most are `note
 | `security gate` | `scripts/scan.sh` in the pinned image, then one SARIF upload per engine. A `*-vulnerable` tag that passes fails the job |
 | `secret scan` | `gitleaks` over the full history |
 | `gate detects v2 defects` | Copies `src/vuln_shell.c.bak` over the hardened source, runs today's `scan.sh` in the image, and checks that each of C1 to C4 is reported by the engines the matrix credits with it (`tests/detection_test.sh`) |
-| `analyzer image` | Builds `analyzers/Dockerfile`, prints each tool's version, runs `analyzers/test.sh` |
 | `fixture mirrors` | Asserts `src/vuln_shell.c.bak` still matches `v2-vulnerable`, and `docs/vuln_shell_annotated.c` differs from it only by its comments |
 | `lint and harness tests` | shellcheck, ruff, and pytest on `llm-eval/tests` and `tests/test_cvss.py` |
 | `security-data release` | On `v*` tags, after every other job passes: attaches `security-data-<tag>.zip` to a release |
@@ -158,15 +157,9 @@ Branch protection on `main` requires every job above except the release, for adm
 
 `explicit_bzero` wipes the `getline` buffer and the history copies before they are freed, because they hold anything typed at the prompt. Buffers that `getline` released while growing are not wiped.
 
-## Static analysers (`analyzers/`)
+## Static analysers and agent harness
 
-A second image holds the analysers for a comparison on the CASTLE benchmark, each at its latest stable release: flawfinder, Semgrep CE, cppcheck 2.22, the Clang 23 static analyzer, GCC 16 `-fanalyzer`, Infer 1.3 (Pulse, Liveness, Starvation), ESBMC 8.8 and Frama-C 33 EVA. It is kept out of the gate, which stays on Ubuntu 24.04. `analyzers/run.sh` runs them on one file with CASTLE's flags where CASTLE ran the tool, and keeps the raw reports. Versions, flags and their sources are in [`analyzers/README.md`](analyzers/README.md).
-
-```bash
-make docker-analyzers         # builds the image, runs analyzers/test.sh
-```
-
-`agent-eval/` lets a coding-agent CLI call the analysers as a tool. So far there is one smoke test, for the Antigravity CLI. See [`agent-eval/README.md`](agent-eval/README.md).
+The comparison of static analysers and the agent harness on the CASTLE benchmark moved to [c-bug-harness](https://github.com/Arnaud1404/c-bug-harness) on 26 November 2026, with the history of `analyzers/` and `agent-eval/`.
 
 ## LLM triage (`llm-eval/`)
 
@@ -195,8 +188,6 @@ docs/                     security report, annotated copy of the vulnerable shel
 .githooks/pre-commit      installed by make hooks
 .github/workflows/ci.yml  jobs listed above
 Dockerfile                pinned toolchain image
-analyzers/                second image with the static analysers, run.sh, its test and sample
-agent-eval/               agent CLI setup: tool wrappers, agy settings, smoke test
 llm-eval/                 LLM triage benchmark, results and harness tests
 ```
 
